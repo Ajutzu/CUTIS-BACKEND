@@ -1,0 +1,46 @@
+{
+  "title": {
+    "type": "String",
+    "required": true
+  },
+  "slug": {
+    "type": "String",
+    "required": true,
+    "unique": true
+  },
+  "content": {
+    "type": "String",
+    "required": true
+  },
+  "author": {
+    "type": "String",
+    "required": true
+  },
+  "tags": [
+    {
+      "type": "String"
+    }
+  ],
+  "category": {
+    "type": "String",
+    "enum": ["Treatment", "Symptoms", "Prevention", "Myths", "Awareness"],
+    "default": "Awareness"
+  },
+  "cover_image": {
+    "type": "String"
+  },
+  "related_conditions": [
+    {
+      "type": "mongoose.Schema.Types.ObjectId",
+      "ref": "SkinCondition"
+    }
+  ],
+  "published_at": {
+    "type": "Date",
+    "default": "Date.now"
+  },
+  "is_published": {
+    "type": "Boolean",
+    "default": false
+  }
+}

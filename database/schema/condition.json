@@ -1,0 +1,19 @@
+{
+  "_id": "ObjectId()",
+  "name": "String",
+  "description": "String",
+  "severity": {
+    "type": "String",
+    "enum": ["Low", "Moderate", "High", "Severe"],
+    "required": true
+  },
+  "recommendation": "String",
+  "created_at": {
+    "type": "Date",
+    "default": "Date.now"
+  },
+  "updated_at": {
+    "type": "Date",
+    "default": "Date.now"
+  }
+}
