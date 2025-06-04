@@ -32,7 +32,7 @@ const PORT = process.env.PORT || 3002;
 
 // Middleware
 server.use(cors({
-    origin: [process.env.CORS_ORIGIN, 'https://cutis-client-user-ajutzus-projects.vercel.app'],
+    origin: process.env.CORS_ORIGIN,
     credentials: true
 }));
 server.use(express.json());
