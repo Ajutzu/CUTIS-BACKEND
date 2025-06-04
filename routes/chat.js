@@ -6,7 +6,7 @@ import { chatBot } from '../middleware/bot.js';
 
 const router = express.Router();
 
-router.post('/customer-service', verifyToken, apiLimiter, chatBot, customerService);
+router.post('/customer-service', apiLimiter, chatBot, customerService);
 router.post('/start-conversation', verifyToken, apiLimiter, conversationalForDiagnosis);
 
 export default router;
