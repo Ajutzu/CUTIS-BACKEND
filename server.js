@@ -29,6 +29,7 @@ import helmet from 'helmet';
 dotenv.config();
 const server = express();
 const PORT = process.env.PORT || 3002;
+server.set('trust proxy', 1);
 
 // Middleware
 server.use(cors({
