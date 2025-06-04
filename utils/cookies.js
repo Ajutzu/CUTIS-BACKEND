@@ -21,6 +21,7 @@ export const setCookie = (res, type, token) => {
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'None',
     maxAge: config.maxAge,
+    domain: '.vercel.app',
     path: '/',
   });
 };
@@ -31,6 +32,7 @@ export const clearCookie = (res, tokenName) => {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'None',
+    domain: '.vercel.app',
     path: '/',
   });
 };
