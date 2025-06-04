@@ -21,7 +21,6 @@ import aiRoutes from './routes/ai.js';
 import chatRoutes from './routes/chat.js';
 
 // Importing middleware
-import { verifyToken } from './middleware/guard.js';
 import errorHandler from './middleware/fallback.js';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
@@ -41,7 +40,7 @@ server.use(helmet());
 
 // Routes
 server.use('/api/auth', authRoutes);
-server.use('/api/user', verifyToken, userRoutes);
+server.use('/api/user', userRoutes);
 server.use('/api/article', articleRoutes);
 server.use('/api/token', tokenRoutes);
 server.use('/api/ai', aiRoutes);
