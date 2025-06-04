@@ -19,7 +19,7 @@ export const setCookie = (res, type, token) => {
   res.cookie(config.name, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'Lax',
+    sameSite: 'None',
     maxAge: config.maxAge,
     path: '/',
   });
@@ -30,7 +30,7 @@ export const clearCookie = (res, tokenName) => {
   res.clearCookie(tokenName, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'Lax',
+    sameSite: 'None',
     path: '/',
   });
 };
