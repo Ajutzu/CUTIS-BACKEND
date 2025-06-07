@@ -22,7 +22,6 @@ export const setCookie = (res, type, token) => {
     sameSite: 'None',
     maxAge: config.maxAge,
     path: '/',
-    artitioned: false,
   });
 };
 
@@ -33,6 +32,5 @@ export const clearCookie = (res, tokenName) => {
     secure: true,
     sameSite: 'None',
     path: '/',
-    artitioned: false,
   });
 };
