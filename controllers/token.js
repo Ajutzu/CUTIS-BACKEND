@@ -33,7 +33,6 @@ export const authTokenChecker = async (req, res, next) => {
         name: latestUser.name,
         email: latestUser.email,
         role: latestUser.role,
-        googleProfileUrl: latestUser.googleProfileUrl
       },
     });
   } catch (error) {
