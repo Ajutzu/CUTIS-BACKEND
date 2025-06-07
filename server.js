@@ -51,6 +51,7 @@ server.use('/api/chat/', chatRoutes);
 
 server.use(errorHandler);
 
+// Start 
 server.listen(PORT, () => {
     console.log(colors.green(`🚀 Server is running on port ${PORT}`));
 });
