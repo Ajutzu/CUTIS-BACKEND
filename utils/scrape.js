@@ -1,163 +1,132 @@
-import puppeteer from 'puppeteer';
-import * as cheerio from 'cheerio';
+import dontenv from "dotenv";
+import fetch from "node-fetch";
+import SearchResult from "../models/result.js";
+
+dontenv.config();
+
+// function for making SERPER API calls
+async function fetchFromSerper(query, location, type = null) {
+  const body = {
+    q: query,
+    location,
+    gl: "ph",
+    ...(type && { type })
+  };
+
+  const response = await fetch(process.env.SERPER_URL, {
+    method: "POST",
+    headers: {
+      "X-API-KEY": process.env.SERPER_API_KEY,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+
+  const data = await response.json();
+  return data?.organic || [];
+}
+
+// function to check cache and update
+async function checkAndUpdateCache(condition, location, type) {
+  const cachedResult = await SearchResult.findOne({
+    condition,
+    location,
+  });
+
+  if (cachedResult) {
+    console.log(`Using cached ${type} results from DB`);
+    return type === 'clinics' ? cachedResult.clinics : cachedResult.specialists;
+  }
+  return null;
+}
 
 async function scrapeDermatologyClinics(condition, location) {
-  let browser;
   try {
-    // Use the location string directly
-    const locationString = location || 'Singapore';
-    
-    const query = `dermatologist specialist for ${condition} skin condition in ${locationString}`;
-    const url = `https://www.bing.com/search?q=${encodeURIComponent(query)}`;
+    const cachedResults = await checkAndUpdateCache(condition, location, 'clinics');
+    if (cachedResults) return cachedResults;
 
-    // Launch a headless browser
-    browser = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
-    });
-    
-    const page = await browser.newPage();
-    
-    // Set a user agent to appear more like a regular browser
-    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
-    
-    // Navigate to the search URL
-    await page.goto(url, { waitUntil: 'networkidle2' });
-    
-    // Wait for search results to load
-    await page.waitForSelector('.b_algo', { timeout: 5000 }).catch(() => console.log('Selector timeout - continuing anyway'));
-    
-    // Get the page content
-    const html = await page.content();
-    
-    const $ = cheerio.load(html);
-    let clinics = [];
+    const query = `dermatology clinic ${condition} treatment skin specialist near ${location}`;
+    const results = await fetchFromSerper(query, location, "places");
 
-    $('.b_algo').each((i, el) => {
-      const title = $(el).find('h2').text();
-      const link = $(el).find('a').attr('href');
-      const snippet = $(el).find('.b_caption p').text();
-
-      if (title && link && isLikelyClinic(title, snippet)) {
-        clinics.push({
-          title,
-          link,
-          snippet,
-          condition
-        });
-      }
-    });
-    
-    // Close the browser
-    await browser.close();
-    browser = null;
-    
-    return clinics.slice(0, 5); 
-  } catch (error) {
-    console.error('Error scraping dermatology clinics:', error);
-    return [];
-  } finally {
-    // Ensure browser is closed even if an error occurs
-    if (browser) {
-      try {
-        await browser.close();
-      } catch (closeError) {
-        console.error('Error closing browser:', closeError);
-      }
+    if (!results.length) {
+      console.warn("No clinic results found");
+      return [];
     }
+
+    const clinics = results
+      .filter(result =>
+        result.title &&
+        result.link &&
+        result.snippet &&
+        (result.title.toLowerCase().includes("clinic") ||
+         result.title.toLowerCase().includes("center") ||
+         result.title.toLowerCase().includes("hospital"))
+      )
+      .map(result => ({
+        title: result.title,
+        link: result.link,
+        snippet: result.snippet,
+        condition,
+        location,
+      }));
+
+    const topClinics = clinics.slice(0, 5);
+
+    await SearchResult.findOneAndUpdate(
+      { location, condition },
+      { clinics: topClinics },
+      { upsert: true }
+    );
+
+    return topClinics;
+  } catch (error) {
+    console.error("Error fetching clinic data:", error);
+    return [];
   }
 }
 
-async function scrapeDermatologists(condition) {
-  let browser;
+async function scrapeDermatologists(condition, location) {
   try {
-    const query = `top dermatologists specializing in ${condition} treatment`;
-    const url = `https://www.bing.com/search?q=${encodeURIComponent(query)}`;
+    const cachedResults = await checkAndUpdateCache(condition, location, 'specialists');
+    if (cachedResults) return cachedResults;
 
-    // Launch a headless browser
-    browser = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
-    });
-    
-    const page = await browser.newPage();
-    
-    // Set a user agent to appear more like a regular browser
-    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
-    
-    // Navigate to the search URL
-    await page.goto(url, { waitUntil: 'networkidle2' });
-    
-    // Wait for search results to load
-    await page.waitForSelector('.b_algo', { timeout: 5000 }).catch(() => console.log('Selector timeout - continuing anyway'));
-    
-    // Get the page content
-    const html = await page.content();
+    const query = `dermatologist doctor specialist for ${condition} in ${location}`;
+    const results = await fetchFromSerper(query, location);
 
-    const $ = cheerio.load(html);
-    let specialists = [];
-
-    $('.b_algo').each((i, el) => {
-      const name = $(el).find('h2').text();
-      const link = $(el).find('a').attr('href');
-      const description = $(el).find('.b_caption p').text();
-      if (name && link && isLikelyDoctor(name, description)) {
-        specialists.push({
-          name,
-          link,
-          description,
-          specialty: condition
-        });
-      }
-    });
-    
-    // Close the browser
-    await browser.close();
-    browser = null;
-    
-    return specialists.slice(0, 3); 
-  } catch (error) {
-    console.error('Error scraping dermatologists:', error);
-    return [];
-  } finally {
-    // Ensure browser is closed even if an error occurs
-    if (browser) {
-      try {
-        await browser.close();
-      } catch (closeError) {
-        console.error('Error closing browser:', closeError);
-      }
+    if (!results.length) {
+      console.warn("No specialist results found");
+      return [];
     }
+
+    const specialists = results
+      .filter(result =>
+        result.title &&
+        result.link &&
+        result.snippet &&
+        (result.title.toLowerCase().includes("dr.") ||
+         result.title.toLowerCase().includes("doctor") ||
+         result.snippet.toLowerCase().includes("dermatologist"))
+      )
+      .map(result => ({
+        name: result.title,
+        link: result.link,
+        description: result.snippet,
+        specialty: condition,
+      }));
+
+    const topSpecialists = specialists.slice(0, 3);
+
+    await SearchResult.findOneAndUpdate(
+      { location, condition },
+      { specialists: topSpecialists },
+      { upsert: true }
+    );
+
+    return topSpecialists;
+  } catch (error) {
+    console.error("Error fetching specialist data:", error);
+    return [];
   }
-}
-
-function isLikelyClinic(title, description) {
-  const clinicKeywords = [
-    'clinic', 'dermatology', 'medical center', 'hospital', 'skin care',
-    'dermatologist', 'treatment center', 'health', 'doctor', 'specialist',
-    'md', 'practice', 'physician', 'healthcare', 'center'
-  ];
-  
-  const lowerTitle = title.toLowerCase();
-  const lowerDesc = description.toLowerCase();
-  
-  return clinicKeywords.some(keyword => 
-    lowerTitle.includes(keyword) || lowerDesc.includes(keyword)
-  );
-}
-
-function isLikelyDoctor(name, description) {
-  const doctorKeywords = [
-    'dr.', 'dr ', 'md', 'dermatologist', 'specialist', 'physician',
-    'doctor', 'prof.', 'professor', 'consultant'
-  ];
-  
-  const lowerName = name.toLowerCase();
-  const lowerDesc = description.toLowerCase();
-  
-  return doctorKeywords.some(keyword => 
-    lowerName.includes(keyword) || lowerDesc.includes(keyword)
-  );
 }
 
 export { scrapeDermatologyClinics, scrapeDermatologists };
