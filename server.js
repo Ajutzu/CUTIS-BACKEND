@@ -11,6 +11,7 @@ import connectToCutisDB from './database/connection.js';
 import './models/article.js';
 import './models/condition.js';
 import './models/user.js';
+import './models/result.js';
 
 // Importing routes
 import authRoutes from './routes/auth.js';

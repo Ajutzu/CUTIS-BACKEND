@@ -54,7 +54,7 @@ export const classifyImage = async (req, res, next) => {
       try {
         const location = req.body.location;
         [specialists, clinics] = await Promise.all([
-          scrapeDermatologists(classification),
+          scrapeDermatologists(classification, location),
           scrapeDermatologyClinics(classification, location),
         ]);
       } catch (scrapeError) {
