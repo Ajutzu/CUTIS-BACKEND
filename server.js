@@ -12,6 +12,7 @@ import './models/article.js';
 import './models/condition.js';
 import './models/user.js';
 import './models/result.js';
+import './models/maps.js';
 
 // Importing routes
 import authRoutes from './routes/auth.js';
@@ -20,6 +21,7 @@ import articleRoutes from './routes/article.js';
 import tokenRoutes from './routes/token.js';
 import aiRoutes from './routes/ai.js';
 import chatRoutes from './routes/chat.js';
+import mapRoutes from './routes/maps.js';
 
 // Importing middleware
 import errorHandler from './middleware/fallback.js';
@@ -49,6 +51,7 @@ server.use('/api/article', articleRoutes);
 server.use('/api/token', tokenRoutes);
 server.use('/api/ai', aiRoutes);
 server.use('/api/chat/', chatRoutes);
+server.use('/api/maps', mapRoutes);
 
 server.use(errorHandler);
 

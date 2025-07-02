@@ -1,6 +1,7 @@
 import dontenv from "dotenv";
 import fetch from "node-fetch";
 import SearchResult from "../models/result.js";
+import MapEntry from "../models/maps.js";
 
 dontenv.config();
 
@@ -114,7 +115,7 @@ async function scrapeDermatologists(condition, location) {
         specialty: condition,
       }));
 
-    const topSpecialists = specialists.slice(0, 3);
+    const topSpecialists = specialists.slice(0, 5);
 
     await SearchResult.findOneAndUpdate(
       { location, condition },
@@ -129,4 +130,47 @@ async function scrapeDermatologists(condition, location) {
   }
 }
 
-export { scrapeDermatologyClinics, scrapeDermatologists };
+async function scrapeMaps(location) {
+  try {
+    // Try cache first
+    const cached = await MapEntry.find({ location });
+    if (cached && cached.length) {
+      console.log('Using cached map results from DB');
+      return cached;
+    }
+    // Always search for dermatology clinics
+    const searchQuery = `dermatology clinic near ${location}`;
+    const results = await fetchFromSerper(searchQuery, location, 'places');
+    if (!results.length) {
+      console.warn('No map results found');
+      return [];
+    }
+    // Filter/map results
+    const entries = results
+      .filter(r => r.title && (r.address || r.snippet))
+      .map(r => ({
+        name: r.title,
+        address: r.address || r.snippet || '',
+        type: 'clinic',
+        coordinates: r.coordinates || {},
+        link: r.link,
+        description: r.snippet,
+        location,
+        lastFetched: new Date()
+      }));
+    // Upsert all
+    for (const entry of entries) {
+      await MapEntry.findOneAndUpdate(
+        { name: entry.name, address: entry.address, location: entry.location },
+        entry,
+        { upsert: true }
+      );
+    }
+    return entries;
+  } catch (err) {
+    console.error('Error in scrapeMaps:', err);
+    return [];
+  }
+}
+
+export { scrapeDermatologyClinics, scrapeDermatologists, scrapeMaps };
