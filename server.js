@@ -13,6 +13,7 @@ import './models/condition.js';
 import './models/user.js';
 import './models/result.js';
 import './models/maps.js';
+import './models/conversation.js';
 
 // Importing routes
 import authRoutes from './routes/auth.js';
@@ -22,6 +23,7 @@ import tokenRoutes from './routes/token.js';
 import aiRoutes from './routes/ai.js';
 import chatRoutes from './routes/chat.js';
 import mapRoutes from './routes/maps.js';
+import conversationRoutes from './routes/conversation.js';
 
 // Importing middleware
 import errorHandler from './middleware/fallback.js';
@@ -37,9 +39,13 @@ server.set('trust proxy', 1);
 
 // Middleware
 server.use(cors({
-    origin: process.env.CORS_ORIGIN,
-    credentials: true,
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true);
+    return callback(null, true);
+  },
+  credentials: true,
 }));
+
 server.use(express.json());
 server.use(cookieParser());
 server.use(helmet());
@@ -50,8 +56,9 @@ server.use('/api/user', userRoutes);
 server.use('/api/article', articleRoutes);
 server.use('/api/token', tokenRoutes);
 server.use('/api/ai', aiRoutes);
-server.use('/api/chat/', chatRoutes);
+server.use('/api/chat', chatRoutes);
 server.use('/api/maps', mapRoutes);
+server.use('/api/conversation', conversationRoutes);
 
 server.use(errorHandler);
 

@@ -16,6 +16,7 @@ import {
   scrapeDermatologists,
 } from "../utils/scrape.js";
 
+// Controller for classifying images using AI
 export const classifyImage = async (req, res, next) => {
   try {
     const userId = req.user ? req.user.id : null;

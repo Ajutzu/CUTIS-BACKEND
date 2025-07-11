@@ -1,31 +1,36 @@
-import { scrapeMaps, scrapeDermatologists } from '../utils/scrape.js';
-import MapEntry from '../models/maps.js';
+import Clinic from '../models/maps.js';
+import { searchDermatologistsTomTom } from '../utils/maps.js';
 
 // POST /search
 export const searchMap = async (req, res, next) => {
-  try {
-    const { location } = req.body;
-    if (!location) return res.status(400).json({ error: 'Location is required.' });
-    const results = await scrapeMaps(location);
-    res.json({ results });
-  } catch (err) {
-    next(err);
-  }
-};
+  const { location = '', query = 'dermatologist' } = req.body;
 
-// POST /current-location
-export const getCurrentLocationMap = async (req, res, next) => {
+  if (!location) {
+    return res.status(400).json({ success: false, message: 'location is required' });
+  }
+
   try {
-    const { location } = req.body;
-    if (!location) return res.status(400).json({ error: 'Location is required.' });
-    let results = await scrapeMaps(location);
-    if (!results || results.length === 0) {
-      // fallback: search for dermatologists if no clinics found
-      results = await scrapeDermatologists('skin', location);
-      results = (results || []).map(r => ({ ...r, type: 'dermatologist' }));
-    }
-    res.json({ results });
+    const clinics = await searchDermatologistsTomTom(query, location);
+
+    // Cache each clinic if not yet saved
+    const operations = clinics.map(async (clinic) => {
+      try {
+        return await Clinic.findOneAndUpdate(
+          { address: clinic.address },
+          clinic,
+          { upsert: true, new: true, setDefaultsOnInsert: true }
+        );
+      } catch (err) {
+        console.error('[searchMap] Failed to cache clinic:', err.message);
+        return null;
+      }
+    });
+
+    await Promise.allSettled(operations);
+
+    return res.json({ success: true, data: clinics });
   } catch (err) {
-    next(err);
+    console.error('[searchMap] error', err.message);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 };
