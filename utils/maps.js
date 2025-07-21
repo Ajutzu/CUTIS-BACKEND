@@ -7,6 +7,13 @@ dotenv.config();
 const TOMTOM_API_KEY = process.env.TOMTOM_API_KEY;
 
 export const geocodeCity = async (location) => {
+
+  const coordRegex = /^-?\d+\.?\d*,-?\d+\.?\d*$/;
+  if (coordRegex.test(location)) {
+    const [lat, lon] = location.split(',').map(Number);
+    return { lat, lon };
+  }
+
   const url = `https://api.tomtom.com/search/2/geocode/${encodeURIComponent(location)}.json?key=${TOMTOM_API_KEY}&limit=1&countrySet=PH`;
   const res = await fetch(url);
   const data = await res.json();
