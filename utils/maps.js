@@ -26,8 +26,8 @@ export const geocodeCity = async (location) => {
 };
 
 export const searchDermatologistsTomTom = async (
-  query = 'dermatologist',
-  location = 'Philippines'
+  query,
+  location
 ) => {
   try {
     const { lat, lon } = await geocodeCity(location);
