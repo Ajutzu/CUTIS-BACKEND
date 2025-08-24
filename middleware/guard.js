@@ -37,7 +37,7 @@ export const verifyResetToken = (req, res, next) => {
 
 // Optional: Restrict to admin only
 export const isAdmin = (req, res, next) => {
-    if (req.body.verify !== process.env.ADMIN_SECRET) 
+    if (req.query.verify !== process.env.ADMIN_SECRET) 
         return next({ status: 403, error: 'Admin only' });
     next();
 };

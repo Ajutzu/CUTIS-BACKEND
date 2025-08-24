@@ -8,7 +8,7 @@ const standardStorage = new CloudinaryStorage({
   params: {
     folder: 'Cutis/Images',
     resource_type: 'image',
-    allowed_formats: ['jpg', 'png', 'jpeg'],
+    allowed_formats: ['jpg', 'png', 'jpeg', 'webp'],
   },
 });
 
@@ -18,7 +18,7 @@ const skinStorage = new CloudinaryStorage({
   params: {
     folder: 'Cutis/Skins',
     resource_type: 'image',
-    allowed_formats: ['jpg', 'png', 'jpeg'],
+    allowed_formats: ['jpg', 'png', 'jpeg', 'webp'],
     public_id: (req, file) => {
       let classification = 'Unclassified';
       
