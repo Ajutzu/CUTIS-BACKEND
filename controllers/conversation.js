@@ -6,8 +6,8 @@ export const startConversation = async (req, res, next) => {
   try {
     const userId = req.user.id;
     const { message } = req.body;
-    const { historyId } = req.body;
-
+    const { historyId } = req.body; 
+     
     if (!message || typeof message !== "string" || message.trim() === "") {
       return next({ status: 400, message: "Message is required" });
     }
@@ -53,6 +53,7 @@ export const replyConversation = async (req, res, next) => {
     const { conversationId } = req.params;
     const { message } = req.body;
 
+    console.log("Replying to conversation:", conversationId, "with message:", message);
     const convo = await Conversation.findOne({ _id: conversationId, user: userId });
     if (!convo) return next({ status: 404, message: "Conversation not found" });
 

@@ -60,7 +60,7 @@ const RequestLogSchema = new Schema({
     device_name: String,
     method: {
         type: String,
-        enum: ['GET', 'POST', 'PUT', 'DELETE']
+        enum: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH']
     },
     ip_address: String,
     status: String,

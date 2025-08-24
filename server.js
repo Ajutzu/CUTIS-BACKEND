@@ -24,6 +24,8 @@ import aiRoutes from './routes/ai.js';
 import chatRoutes from './routes/chat.js';
 import mapRoutes from './routes/maps.js';
 import conversationRoutes from './routes/conversation.js';
+import logsRoutes from './routes/logs.js';
+import managementRoutes from './routes/management.js';
 
 // Importing middleware
 import errorHandler from './middleware/fallback.js';
@@ -59,6 +61,8 @@ server.use('/api/ai', aiRoutes);
 server.use('/api/chat', chatRoutes);
 server.use('/api/maps', mapRoutes);
 server.use('/api/conversation', conversationRoutes);
+server.use('/api/logs', logsRoutes);
+server.use('/api/management', managementRoutes);
 
 server.use(errorHandler);
 

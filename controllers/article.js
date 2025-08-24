@@ -70,7 +70,7 @@ export const deleteArticle = async (req, res, next) => {
 // Get all articles
 export const getAllArticles = async (req, res, next) => {
   try {
-    const articles = await Article.find({}, "-content").populate(
+    const articles = await Article.find({}).populate(
       "related_conditions"
     );
     res.json(articles);
