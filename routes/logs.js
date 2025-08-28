@@ -10,19 +10,25 @@ import {
     getRecentRequestLogs
 } from '../controllers/logs.js';
 import { verifyToken, isAdmin } from '../middleware/guard.js';
+import { apiLimiter } from '../middleware/limiter.js';
 
 const router = express.Router();
 
+// Apply middleware to all routes
+router.use(apiLimiter);
+router.use(verifyToken);
+router.use(isAdmin);
+
 // Activity Logs Routes
-router.get('/', verifyToken, isAdmin, getAllActivityLogs);
-router.get('/recent', verifyToken, isAdmin, getRecentActivityLogs);
-router.get('/name/:namePattern', verifyToken, isAdmin, getUserActivityLogsByName);
-router.get('/module/:module', verifyToken, isAdmin, getLogsByModule);
+router.get('/', getAllActivityLogs);
+router.get('/recent', getRecentActivityLogs);
+router.get('/name/:namePattern', getUserActivityLogsByName);
+router.get('/module/:module', getLogsByModule);
 
 // Request Logs Routes
-router.get('/requests', verifyToken, isAdmin, getAllRequestLogs);
-router.get('/requests/recent', verifyToken, isAdmin, getRecentRequestLogs);
-router.get('/requests/name/:namePattern', verifyToken, isAdmin, getUserRequestLogsByName);
-router.get('/requests/method/:method', verifyToken, isAdmin, getRequestLogsByMethod);
+router.get('/requests', getAllRequestLogs);
+router.get('/requests/recent', getRecentRequestLogs);
+router.get('/requests/name/:namePattern', getUserRequestLogsByName);
+router.get('/requests/method/:method', getRequestLogsByMethod);
 
 export default router;

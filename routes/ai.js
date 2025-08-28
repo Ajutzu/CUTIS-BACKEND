@@ -6,6 +6,11 @@ import { apiLimiter} from '../middleware/limiter.js';
 
 const router = express.Router();
 
-router.post('/classify', verifyToken, apiLimiter, skinUpload.single('image'), classifyImage);
+// Apply middleware to all routes
+router.use(apiLimiter);
+router.use(verifyToken);
+
+// Route with upload middleware
+router.post('/classify', skinUpload.single('image'), classifyImage);
 
 export default router;

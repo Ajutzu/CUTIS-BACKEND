@@ -26,6 +26,7 @@ import mapRoutes from './routes/maps.js';
 import conversationRoutes from './routes/conversation.js';
 import logsRoutes from './routes/logs.js';
 import managementRoutes from './routes/management.js';
+import dashboardRoutes from './routes/dashboard.js';
 
 // Importing middleware
 import errorHandler from './middleware/fallback.js';
@@ -63,6 +64,7 @@ server.use('/api/maps', mapRoutes);
 server.use('/api/conversation', conversationRoutes);
 server.use('/api/logs', logsRoutes);
 server.use('/api/management', managementRoutes);
+server.use('/api/dashboard', dashboardRoutes);
 
 server.use(errorHandler);
 

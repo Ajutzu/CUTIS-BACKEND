@@ -5,9 +5,13 @@ import { verifyToken } from '../middleware/guard.js';
 
 const router = express.Router();
 
-router.post('/update-account', apiLimiter, verifyToken, updateAccount);
-router.get('/medical-history', apiLimiter, verifyToken, getAllMedicalHistory);
-router.get('/medical-history/:id', apiLimiter, verifyToken, getMedicalHistoryById);
-router.delete('/medical-history/:id', apiLimiter, verifyToken, deleteMedicalHistoryById);
+// Apply middleware to all routes
+router.use(apiLimiter);
+router.use(verifyToken);
+
+router.post('/update-account', updateAccount);
+router.get('/medical-history', getAllMedicalHistory);
+router.get('/medical-history/:id', getMedicalHistoryById);
+router.delete('/medical-history/:id', deleteMedicalHistoryById);
 
 export default router;

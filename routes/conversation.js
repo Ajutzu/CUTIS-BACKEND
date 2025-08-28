@@ -4,8 +4,11 @@ import { verifyToken } from "../middleware/guard.js";
 
 const router = express.Router();
 
-router.get("/latest", verifyToken, getLatestConversation);
-router.post("/start", verifyToken, startConversation);
-router.post("/:conversationId/reply", verifyToken, replyConversation);
+// Apply authentication middleware to all routes
+router.use(verifyToken);
+
+router.get("/latest", getLatestConversation);
+router.post("/start", startConversation);
+router.post("/:conversationId/reply", replyConversation);
 
 export default router;

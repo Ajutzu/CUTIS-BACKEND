@@ -12,14 +12,17 @@ import { verifyResetToken } from '../middleware/guard.js';
 
 const router = express.Router();
 
+// Apply rate limiting to all routes
+router.use(apiLimiter);
+
 // Public routes
-router.post('/login', loginUser);
-router.post('/register', apiLimiter, registerUser);
+router.post('/login', loginLimiter, loginUser);
+router.post('/register', registerUser);
 router.post('/google-oauth', loginLimiter, googleLogin);
-router.post('/forgot-password', apiLimiter, forgotPassword);
+router.post('/forgot-password', forgotPassword);
 
 // Token verification routes
-router.post('/verify-otp', apiLimiter, verifyResetToken, OTPChecker);
-router.post('/update-password', apiLimiter, verifyResetToken, updatePassword);
+router.post('/verify-otp', verifyResetToken, OTPChecker);
+router.post('/update-password', verifyResetToken, updatePassword);
 
 export default router;
