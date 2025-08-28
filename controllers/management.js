@@ -28,8 +28,6 @@ export const getAllUsers = async (req, res) => {
             ];
         }
 
-        console.log('getAllUsers filter:', { role, search, is_active, finalFilter: filter });
-
         // Execute query with pagination using aggregation for better performance
         const users = await User.aggregate([
             { $match: filter },
@@ -368,8 +366,6 @@ export const searchUsers = async (req, res) => {
                 { email: { $regex: query, $options: 'i' } }
             ];
         }
-
-        console.log('searchUsers filter:', { query, role, is_active, dateFrom, dateTo, finalFilter: filter });
 
         const users = await User.aggregate([
             { $match: filter },

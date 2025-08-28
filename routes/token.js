@@ -4,6 +4,7 @@ import { verifyToken, verifyResetToken } from '../middleware/guard.js';
 
 const router = express.Router();
 
+// Routes with specific middleware requirements
 router.get('/check-reset-token', verifyResetToken, resetTokenChecker);
 router.get('/session-management', verifyToken, authTokenChecker);
 router.get('/logout', logout);
