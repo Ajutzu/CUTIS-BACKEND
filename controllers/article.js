@@ -26,13 +26,23 @@ export const createArticle = async (req, res, next) => {
 export const updateArticle = async (req, res, next) => {
   try {
     const { id } = req.params;
+
+    // ✅ Handle uploaded file
+    if (req.file) {
+      req.body.cover_image = req.file.path;
+    }
+
+    console.log("Request Body:", req.body);
+
     const updatedArticle = await Article.findByIdAndUpdate(id, req.body, {
       new: true,
       runValidators: true,
     });
+
     if (!updatedArticle) {
       return res.status(404).json({ message: "Article not found." });
     }
+
     await logUserActivityAndRequest({
       userId: req.user.id,
       action: "Update Article",
@@ -40,6 +50,7 @@ export const updateArticle = async (req, res, next) => {
       status: "Success",
       req,
     });
+
     res.json({ message: "Article updated successfully." });
   } catch (error) {
     next(error);
