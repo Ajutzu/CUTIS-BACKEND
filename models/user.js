@@ -96,7 +96,7 @@ const UserSchema = new Schema({
     },
     is_active: {
         type: Boolean,
-        default: true
+        default: false
     },
     medical_history: [MedicalHistorySchema],
     activity_logs: [ActivityLogSchema],

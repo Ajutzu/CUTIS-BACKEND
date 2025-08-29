@@ -38,17 +38,22 @@ export const googleLogin = async (req, res, next) => {
         email,
         password: crypto.randomBytes(32).toString("hex"),
         role: "User",
+        is_active: true, // ✅ new user is active
       });
       await user.save();
       isNewUser = true;
+    } else {
+      // ✅ set active when logging in
+      user.is_active = true;
+      await user.save();
     }
 
-    const yourToken = jwt.sign( 
+    const yourToken = jwt.sign(
       {
         id: user._id,
         role: user.role,
-        name: user.name, 
-        email: user.email, 
+        name: user.name,
+        email: user.email,
       },
       process.env.JWT_SECRET,
       { expiresIn: "7d" }
@@ -62,7 +67,7 @@ export const googleLogin = async (req, res, next) => {
       req,
     });
 
-    setCookie(res, 'auth', yourToken);
+    setCookie(res, "auth", yourToken);
 
     res.status(200).json({
       message: "Google login successful",
@@ -71,12 +76,14 @@ export const googleLogin = async (req, res, next) => {
         name: user.name,
         email: user.email,
         role: user.role,
+        is_active: user.is_active,
       },
     });
   } catch (err) {
     next(err);
   }
 };
+
 
 // Login
 export const loginUser = async (req, res, next) => {
@@ -87,15 +94,18 @@ export const loginUser = async (req, res, next) => {
     if (!user) return next({ status: 400, error: "Invalid email or password" });
 
     const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch)
-      return next({ status: 400, error: "Invalid email or password" });
+    if (!isMatch) return next({ status: 400, error: "Invalid email or password" });
+
+    // ✅ set active when logging in
+    user.is_active = true;
+    await user.save();
 
     const token = jwt.sign(
       {
         id: user._id,
         role: user.role,
-        name: user.name, 
-        email: user.email, 
+        name: user.name,
+        email: user.email,
       },
       process.env.JWT_SECRET,
       { expiresIn: "7d" }
@@ -109,7 +119,7 @@ export const loginUser = async (req, res, next) => {
       req,
     });
 
-    setCookie(res, 'auth', token);
+    setCookie(res, "auth", token);
 
     res.json({
       message: "Login Successfully",
@@ -118,6 +128,7 @@ export const loginUser = async (req, res, next) => {
         name: user.name,
         email: user.email,
         role: user.role,
+        is_active: user.is_active,
       },
     });
   } catch (err) {
