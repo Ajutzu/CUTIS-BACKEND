@@ -12,7 +12,6 @@ import {
   searchesByCondition,
   activityLogsTrend,
   requestLogsByMethod,
-  requestLogsByStatus,
   topTags,
   historyBySeverity,
 } from "../controllers/dashboard.js";
@@ -46,7 +45,6 @@ router.get("/searches/condition", searchesByCondition);
 // Logs
 router.get("/logs/activity-trend", activityLogsTrend);
 router.get("/logs/request-method", requestLogsByMethod);
-router.get("/logs/request-status", requestLogsByStatus);
 
 // Tags & History
 router.get("/articles/top-tags", topTags);

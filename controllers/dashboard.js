@@ -96,34 +96,30 @@ export async function searchesByCondition(req, res) {
 export async function activityLogsTrend(req, res) {
   const { start, end } = req.query;
   const dateFilter = buildDateFilter(start, end, "activity_logs.timestamp");
+
   const data = await User.aggregate([
     { $unwind: "$activity_logs" },
     { $match: Object.keys(dateFilter).length ? dateFilter : {} },
     {
       $group: {
-        _id: { $dayOfMonth: "$activity_logs.timestamp" },
+        _id: {
+          $dateToString: { format: "%Y-%m-%d", date: "$activity_logs.timestamp" }
+        },
         count: { $sum: 1 }
       }
     },
     { $sort: { "_id": 1 } }
   ]);
+
   res.json(data);
 }
+
 
 // 11. Request logs by method
 export async function requestLogsByMethod(req, res) {
   const data = await User.aggregate([
     { $unwind: "$request_logs" },
     { $group: { _id: "$request_logs.method", count: { $sum: 1 } } }
-  ]);
-  res.json(data);
-}
-
-// 12. Request logs by status
-export async function requestLogsByStatus(req, res) {
-  const data = await User.aggregate([
-    { $unwind: "$request_logs" },
-    { $group: { _id: "$request_logs.status", count: { $sum: 1 } } }
   ]);
   res.json(data);
 }
@@ -157,5 +153,3 @@ export async function historyBySeverity(req, res) {
   res.json(data);
 }
 
-// 16. New users over time (by month)
-// trimmed advanced analytics removed for a simpler, focused dashboard
