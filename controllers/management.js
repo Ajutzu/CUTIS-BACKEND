@@ -132,52 +132,53 @@ export const createUser = async (req, res) => {
     }
 };
 
-// Toggle user active status
-export const toggleUserStatus = async (req, res) => {
-    try {
-        const { id } = req.params;
-        const adminId = req.user?.id; // Assuming admin ID is available in req.user
+// Toggle user role (User <-> Admin)
+export const toggleUserRole = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const adminId = req.user?.id; // Assuming admin ID is available in req.user
 
-        const user = await User.findById(id);
-        if (!user) {
-            return res.status(404).json({
-                success: false,
-                message: 'User not found'
-            });
-        }
-
-        const previousStatus = user.is_active;
-        // Toggle status
-        user.is_active = !user.is_active;
-        await user.save();
-
-        // Log admin action using existing logger middleware
-        if (adminId) {
-            await logUserActivityAndRequest({
-                userId: adminId,
-                action: 'Toggle User Status',
-                module: 'User Management',
-                status: 'Success',
-                req
-            });
-        }
-
-        res.status(200).json({
-            success: true,
-            message: `User ${user.is_active ? 'activated' : 'deactivated'} successfully`,
-            data: {
-                id: user._id,
-                is_active: user.is_active
-            }
-        });
-    } catch (error) {
-        console.error('5.) Error toggling user status:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Error toggling user status',
-            error: error.message
-        });
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
     }
+
+    const previousRole = user.role;
+
+    // Toggle role between User and Admin
+    user.role = previousRole === "Admin" ? "User" : "Admin";
+    await user.save();
+
+    // Log admin action using existing logger middleware
+    if (adminId) {
+      await logUserActivityAndRequest({
+        userId: adminId,
+        action: "Toggle User Role",
+        module: "User Management",
+        status: "Success",
+        req
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `User role updated successfully: ${previousRole} ➝ ${user.role}`,
+      data: {
+        id: user._id,
+        role: user.role
+      }
+    });
+  } catch (error) {
+    console.error("❌ Error toggling user role:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error toggling user role",
+      error: error.message
+    });
+  }
 };
 
 // Delete user

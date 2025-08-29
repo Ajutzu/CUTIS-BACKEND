@@ -3,7 +3,7 @@ import express from 'express';
 import {
     getAllUsers,
     createUser,
-    toggleUserStatus,
+    toggleUserRole,
     deleteUser,
     getUsersByRole,
     searchUsers
@@ -22,7 +22,7 @@ router.get('/users', getAllUsers);
 router.get('/users/search', searchUsers);
 router.get('/users/role/:role', getUsersByRole);
 router.post('/users', createUser);
-router.patch('/users/:id/toggle-status', toggleUserStatus);
+router.patch('/users/:id/toggle-role', toggleUserRole);
 router.delete('/users/:id', deleteUser);
 
 export default router;
