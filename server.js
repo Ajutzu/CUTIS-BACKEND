@@ -14,6 +14,7 @@ import './models/user.js';
 import './models/result.js';
 import './models/maps.js';
 import './models/conversation.js';
+import './models/maps.js';
 
 // Importing routes
 import authRoutes from './routes/auth.js';
@@ -48,6 +49,7 @@ server.use(cors({
   },
   credentials: true,
 }));
+  
 
 server.use(express.json());
 server.use(cookieParser());

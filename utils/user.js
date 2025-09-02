@@ -19,6 +19,8 @@ export const handlePasswordChange = async (user, currentPassword, newPassword) =
     user.password = hashedPassword;
 };
 
+// Note: handleEmailChange is no longer used in the main flow
+// Email verification is now handled directly in the updateAccount controller
 export const handleEmailChange = async (user, email) => {
     if (email && email !== user.email) {
         const existingUser = await User.findOne({ email });

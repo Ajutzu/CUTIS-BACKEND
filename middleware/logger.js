@@ -20,7 +20,6 @@ export const logUserActivityAndRequest = async ({ userId, action, module, status
     await user.save();
 };
 
-
 // Add a medical history entry to the user's record
 export const addMedicalHistory = async (userId, condition, imageUrl, recommendation, severity, specialists = [], clinics = []) => {
     try {

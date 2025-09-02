@@ -17,7 +17,7 @@ const buildDateFilter = (start, end, fieldPath) => {
 // 1. Articles published per category
 export async function articlesByCategory(req, res) {
   const data = await Article.aggregate([
-    { $group: { _id: "$category", count: { $sum: 1 } } }
+    { $group: { _id: "$category", count: { $sum: 1 } } },
   ]);
   res.json(data);
 }
@@ -30,7 +30,7 @@ export async function articlesOverTime(req, res) {
   const data = await Article.aggregate([
     { $match: filter },
     { $group: { _id: { $month: "$published_at" }, count: { $sum: 1 } } },
-    { $sort: { "_id": 1 } }
+    { $sort: { _id: 1 } },
   ]);
   res.json(data);
 }
@@ -38,7 +38,7 @@ export async function articlesOverTime(req, res) {
 // 3. Active vs inactive users
 export async function activeUsers(req, res) {
   const data = await User.aggregate([
-    { $group: { _id: "$is_active", count: { $sum: 1 } } }
+    { $group: { _id: "$is_active", count: { $sum: 1 } } },
   ]);
   res.json(data);
 }
@@ -46,7 +46,7 @@ export async function activeUsers(req, res) {
 // 4. User role distribution
 export async function userRoles(req, res) {
   const data = await User.aggregate([
-    { $group: { _id: "$role", count: { $sum: 1 } } }
+    { $group: { _id: "$role", count: { $sum: 1 } } },
   ]);
   res.json(data);
 }
@@ -54,7 +54,7 @@ export async function userRoles(req, res) {
 // 5. Conditions by severity
 export async function conditionsBySeverity(req, res) {
   const data = await Condition.aggregate([
-    { $group: { _id: "$severity", count: { $sum: 1 } } }
+    { $group: { _id: "$severity", count: { $sum: 1 } } },
   ]);
   res.json(data);
 }
@@ -62,7 +62,7 @@ export async function conditionsBySeverity(req, res) {
 // 6. Conversations per user
 export async function conversationsPerUser(req, res) {
   const data = await Conversation.aggregate([
-    { $group: { _id: "$user", count: { $sum: 1 } } }
+    { $group: { _id: "$user", count: { $sum: 1 } } },
   ]);
   res.json(data);
 }
@@ -71,23 +71,28 @@ export async function conversationsPerUser(req, res) {
 export async function messagesByRole(req, res) {
   const data = await Conversation.aggregate([
     { $unwind: "$messages" },
-    { $group: { _id: "$messages.role", count: { $sum: 1 } } }
+    { $group: { _id: "$messages.role", count: { $sum: 1 } } },
   ]);
   res.json(data);
 }
 
-// 8. Clinics distribution by location
+// 8. Clinics distribution by location searched - Top 10 only
 export async function clinicsByLocation(req, res) {
-  const data = await Clinic.aggregate([
-    { $group: { _id: "$address", count: { $sum: 1 } } }
-  ]);
-  res.json(data);
+  try {
+    const data = await Clinic.aggregate([
+      { $sortByCount: "$location_searched" },
+      { $limit: 10 }
+    ]);
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 }
 
 // 9. Search results fetched per condition
 export async function searchesByCondition(req, res) {
   const data = await SearchResult.aggregate([
-    { $group: { _id: "$condition", count: { $sum: 1 } } }
+    { $group: { _id: "$condition", count: { $sum: 1 } } },
   ]);
   res.json(data);
 }
@@ -103,23 +108,25 @@ export async function activityLogsTrend(req, res) {
     {
       $group: {
         _id: {
-          $dateToString: { format: "%Y-%m-%d", date: "$activity_logs.timestamp" }
+          $dateToString: {
+            format: "%Y-%m-%d",
+            date: "$activity_logs.timestamp",
+          },
         },
-        count: { $sum: 1 }
-      }
+        count: { $sum: 1 },
+      },
     },
-    { $sort: { "_id": 1 } }
+    { $sort: { _id: 1 } },
   ]);
 
   res.json(data);
 }
 
-
 // 11. Request logs by method
 export async function requestLogsByMethod(req, res) {
   const data = await User.aggregate([
     { $unwind: "$request_logs" },
-    { $group: { _id: "$request_logs.method", count: { $sum: 1 } } }
+    { $group: { _id: "$request_logs.method", count: { $sum: 1 } } },
   ]);
   res.json(data);
 }
@@ -128,7 +135,7 @@ export async function requestLogsByMethod(req, res) {
 export async function avgConversations(req, res) {
   const data = await Conversation.aggregate([
     { $group: { _id: "$user", convos: { $sum: 1 } } },
-    { $group: { _id: null, avgConvos: { $avg: "$convos" } } }
+    { $group: { _id: null, avgConvos: { $avg: "$convos" } } },
   ]);
   res.json(data[0] || { avgConvos: 0 });
 }
@@ -139,7 +146,7 @@ export async function topTags(req, res) {
     { $unwind: "$tags" },
     { $group: { _id: "$tags", count: { $sum: 1 } } },
     { $sort: { count: -1 } },
-    { $limit: 10 }
+    { $limit: 10 },
   ]);
   res.json(data);
 }
@@ -148,8 +155,12 @@ export async function topTags(req, res) {
 export async function historyBySeverity(req, res) {
   const data = await User.aggregate([
     { $unwind: "$medical_history" },
-    { $group: { _id: "$medical_history.condition.severity", count: { $sum: 1 } } }
+    {
+      $group: {
+        _id: "$medical_history.condition.severity",
+        count: { $sum: 1 },
+      },
+    },
   ]);
   res.json(data);
 }
-

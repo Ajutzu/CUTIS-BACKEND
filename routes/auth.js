@@ -6,6 +6,7 @@ import {
   forgotPassword, 
   OTPChecker, 
   updatePassword,
+  verifyRegistrationOTP,
 } from '../controllers/auth.js';
 import { loginLimiter, apiLimiter } from '../middleware/limiter.js';
 import { verifyResetToken } from '../middleware/guard.js';
@@ -18,6 +19,7 @@ router.use(apiLimiter);
 // Public routes
 router.post('/login', loginLimiter, loginUser);
 router.post('/register', registerUser);
+router.post('/verify-registration-otp', verifyRegistrationOTP);
 router.post('/google-oauth', loginLimiter, googleLogin);
 router.post('/forgot-password', forgotPassword);
 

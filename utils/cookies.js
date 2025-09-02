@@ -12,6 +12,14 @@ export const setCookie = (res, type, token) => {
     otp: {
       name: 'resetOtp',
       maxAge: 5 * 60 * 1000 // 5 minutes
+    },
+    temp_reg: {
+      name: 'temp_reg',
+      maxAge: 10 * 60 * 1000 // 10 minutes
+    },
+    temp_update: {
+      name: 'temp_update',
+      maxAge: 10 * 60 * 1000 // 10 minutes
     }
   };
 
