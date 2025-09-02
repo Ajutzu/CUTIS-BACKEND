@@ -1,36 +1,57 @@
+// import { scrapeClinicsWithGeocoding } from '../utils/maps.js';
 import Clinic from '../models/maps.js';
-import { searchDermatologistsTomTom } from '../utils/maps.js';
 
-// POST /search
+// POST /search - Search for dermatology and beauty clinics in cache
 export const searchMap = async (req, res, next) => {
-  const { location = '', query = 'dermatologist' } = req.body;
-
-  if (!location) {
-    return res.status(400).json({ success: false, message: 'location is required' });
-  }
-
   try {
-    const clinics = await searchDermatologistsTomTom(query, location);
+    const { location } = req.body;
+    
+    if (!location) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Location parameter is required" 
+      });
+    }
 
-    // Cache each clinic if not yet saved
-    const operations = clinics.map(async (clinic) => {
-      try {
-        return await Clinic.findOneAndUpdate(
-          { address: clinic.address },
-          clinic,
-          { upsert: true, new: true, setDefaultsOnInsert: true }
-        );
-      } catch (err) {
-        console.error('[searchMap] Failed to cache clinic:', err.message);
-        return null;
-      }
+    // Split the location string by commas and clean up each part
+    const searchTerms = location.toLowerCase()
+      .split(',')
+      .map(term => term.trim())
+      .filter(term => term.length > 0);
+
+    // Build query to find clinics where location_searched OR address contains ANY of the search terms
+    const query = {
+      $or: searchTerms.flatMap(term => [
+        {
+          location_searched: {
+            $regex: term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+            $options: 'i'
+          }
+        },
+        {
+          address: {
+            $regex: term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+            $options: 'i'
+          }
+        }
+      ])
+    };
+
+    // Find matching clinics in cache
+    const matchingClinics = await Clinic.find(query).sort({ created_at: -1 });
+    
+    return res.status(200).json({
+      success: true,
+      count: matchingClinics.length,
+      searchTerms: searchTerms,
+      data: matchingClinics
     });
 
-    await Promise.allSettled(operations);
-
-    return res.json({ success: true, data: clinics });
-  } catch (err) {
-    console.error('[searchMap] error', err.message);
-    return res.status(500).json({ success: false, message: 'Internal server error' });
+  } catch (error) {
+    console.error('Error searching cached locations:', error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error while searching locations"
+    });
   }
 };

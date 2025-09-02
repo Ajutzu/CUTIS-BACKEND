@@ -1,3 +1,4 @@
+
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import User from "../models/user.js";
@@ -84,7 +85,6 @@ export const googleLogin = async (req, res, next) => {
   }
 };
 
-
 // Login
 export const loginUser = async (req, res, next) => {
   const { email, password } = req.body;
@@ -136,7 +136,7 @@ export const loginUser = async (req, res, next) => {
   }
 };
 
-// Registration
+// Registration - Step 1: Send OTP
 export const registerUser = async (req, res, next) => {
   const { name, email, password, role } = req.body;
 
@@ -145,13 +145,111 @@ export const registerUser = async (req, res, next) => {
     if (existingUser)
       return res.status(400).json({ error: "Email already exists" });
 
-    const hashed = await bcrypt.hash(password, 10);
-    const newUser = new User({ name, email, password: hashed, role });
+    // Generate OTP and expiration (10 minutes)
+    const otp = crypto.randomInt(1000, 9999).toString();
+    const expiration = new Date(Date.now() + 10 * 60 * 1000);
+
+    // Store registration data temporarily (you might want to use Redis or a temporary collection)
+    // For now, we'll store it in a temporary user object
+    const tempUser = {
+      name,
+      email,
+      password,
+      role,
+      otp,
+      expiration,
+      isVerified: false
+    };
+
+    // Send verification email
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+
+    const templatePath = path.join(__dirname, "../template", "verification.ejs");
+    let html = await fs.readFile(templatePath, "utf8");
+    html = html.replace("${OTP}", otp);
+    
+    await sendEmail(email, "Verify Your Email - Cutis Registration", html);
+
+    // Store temporary data in session or temporary storage
+    // For now, we'll use a simple approach with cookies
+    const tempToken = jwt.sign(
+      { tempUser },
+      process.env.JWT_SECRET,
+      { expiresIn: "10m" }
+    );
+
+    setCookie(res, 'temp_reg', tempToken);
+
+    // Logger
+    await logUserActivityAndRequest({
+      userId: null,
+      action: "Registration OTP Sent",
+      module: "Auth",
+      status: "Success",
+      req,
+    });
+
+    res.status(200).json({ 
+      message: "OTP verification code sent to your email. Please verify to complete registration." 
+    });
+
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Registration - Step 2: Verify OTP and Complete Registration
+export const verifyRegistrationOTP = async (req, res, next) => {
+  const { otp } = req.body;
+  const tempToken = req.cookies.temp_reg;
+
+  try {
+    if (!tempToken) {
+      return res.status(400).json({ error: "Registration session expired. Please try again." });
+    }
+
+    const decoded = jwt.verify(tempToken, process.env.JWT_SECRET);
+    const tempUser = decoded.tempUser;
+
+    if (!tempUser) {
+      return res.status(400).json({ error: "Invalid registration session" });
+    }
+
+    // Check if OTP matches and hasn't expired
+    if (tempUser.otp !== otp) {
+      return res.status(400).json({ error: "Invalid OTP" });
+    }
+
+    if (new Date() > tempUser.expiration) {
+      return res.status(400).json({ error: "OTP has expired. Please request a new one." });
+    }
+
+    // OTP is valid, proceed with user registration
+    const hashed = await bcrypt.hash(tempUser.password, 10);
+    const newUser = new User({ 
+      name: tempUser.name, 
+      email: tempUser.email, 
+      password: hashed, 
+      role: tempUser.role,
+      is_active: true
+    });
+    
     await newUser.save();
 
-    res.status(201).json({ message: "User registered successfully" });
+    // Send welcome email
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
 
-    // Logger Middleware
+    const welcomeTemplatePath = path.join(__dirname, "../template", "welcome.ejs");
+    let welcomeHtml = await fs.readFile(welcomeTemplatePath, "utf8");
+    
+    await sendEmail(tempUser.email, "Welcome to Cutis!", welcomeHtml);
+
+    // Clear temporary registration cookie
+    clearCookie(res, "temp_reg");
+
+    // Logger
     await logUserActivityAndRequest({
       userId: newUser._id,
       action: "Register",
@@ -159,7 +257,18 @@ export const registerUser = async (req, res, next) => {
       status: "Success",
       req,
     });
+
+    res.status(201).json({ 
+      message: "User registered successfully. Welcome email sent!" 
+    });
+
   } catch (err) {
+    if (err.name === 'JsonWebTokenError') {
+      return res.status(400).json({ error: "Invalid registration session" });
+    }
+    if (err.name === 'TokenExpiredError') {
+      return res.status(400).json({ error: "Registration session expired" });
+    }
     next(err);
   }
 };
