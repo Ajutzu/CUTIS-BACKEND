@@ -13,6 +13,7 @@ import { setCookie, clearCookie } from "../utils/cookies.js";
 
 export const updateAccount = async (req, res, next) => {
   try {
+    console.log("requestion");
     const userId = req.user.id || req.user._id;
     const { name, email, currentPassword, newPassword } = req.body;
     const user = await User.findById(userId);
@@ -188,14 +189,6 @@ export const getAllMedicalHistory = async (req, res, next) => {
         severity: entry.condition?.severity || "",
       }));
 
-    await logUserActivityAndRequest({
-      userId: user._id,
-      action: "View Medical History",
-      module: "Medical Records",
-      status: "Success",
-      req,
-    });
-
     res.status(200).json({
       success: true,
       medical_history: simplifiedHistory,
@@ -226,14 +219,6 @@ export const getMedicalHistoryById = async (req, res, next) => {
     if (!historyEntry) {
       return next({ status: 404, message: "Medical history entry not found" });
     }
-
-    await logUserActivityAndRequest({
-      userId: user._id,
-      action: "View Specific Medical History",
-      module: "Medical Records",
-      status: "Success",
-      req,
-    });
 
     res.status(200).json({
       success: true,
