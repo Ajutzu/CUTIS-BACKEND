@@ -32,6 +32,16 @@ export const getAllUsers = async (req, res) => {
         const users = await User.aggregate([
             { $match: filter },
             { $sort: { created_at: -1 } },
+            { $skip: skip },
+            { $limit: limit },
+            {
+                $lookup: {
+                    from: 'medicalhistories',
+                    localField: '_id',
+                    foreignField: 'user_id',
+                    as: 'medical_history'
+                }
+            },
             {
                 $project: {
                     _id: 1,
@@ -42,9 +52,7 @@ export const getAllUsers = async (req, res) => {
                     created_at: 1,
                     medical_history_count: { $size: '$medical_history' }
                 }
-            },
-            { $skip: skip },
-            { $limit: limit }
+            }
         ]);
 
         // Get total count for pagination using separate count query for better performance
@@ -295,6 +303,16 @@ export const getUsersByRole = async (req, res) => {
         const users = await User.aggregate([
             { $match: { role } },
             { $sort: { created_at: -1 } },
+            { $skip: skip },
+            { $limit: limit },
+            {
+                $lookup: {
+                    from: 'medicalhistories',
+                    localField: '_id',
+                    foreignField: 'user_id',
+                    as: 'medical_history'
+                }
+            },
             {
                 $project: {
                     _id: 1,
@@ -305,9 +323,7 @@ export const getUsersByRole = async (req, res) => {
                     created_at: 1,
                     medical_history_count: { $size: '$medical_history' }
                 }
-            },
-            { $skip: skip },
-            { $limit: limit }
+            }
         ]);
 
         const total = await User.countDocuments({ role });
@@ -371,6 +387,16 @@ export const searchUsers = async (req, res) => {
         const users = await User.aggregate([
             { $match: filter },
             { $sort: { created_at: -1 } },
+            { $skip: skip },
+            { $limit: limit },
+            {
+                $lookup: {
+                    from: 'medicalhistories',
+                    localField: '_id',
+                    foreignField: 'user_id',
+                    as: 'medical_history'
+                }
+            },
             {
                 $project: {
                     _id: 1,
@@ -381,9 +407,7 @@ export const searchUsers = async (req, res) => {
                     created_at: 1,
                     medical_history_count: { $size: '$medical_history' }
                 }
-            },
-            { $skip: skip },
-            { $limit: limit }
+            }
         ]);
 
         const total = await User.countDocuments(filter);

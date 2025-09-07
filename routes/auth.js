@@ -9,7 +9,6 @@ import {
   verifyRegistrationOTP,
 } from '../controllers/auth.js';
 import { loginLimiter, apiLimiter } from '../middleware/limiter.js';
-import { verifyResetToken } from '../middleware/guard.js';
 
 const router = express.Router();
 
@@ -24,7 +23,7 @@ router.post('/google-oauth', loginLimiter, googleLogin);
 router.post('/forgot-password', forgotPassword);
 
 // Token verification routes
-router.post('/verify-otp', verifyResetToken, OTPChecker);
-router.post('/update-password', verifyResetToken, updatePassword);
+router.post('/verify-otp', OTPChecker);
+router.post('/update-password', updatePassword);
 
 export default router;
