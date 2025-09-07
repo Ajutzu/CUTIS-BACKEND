@@ -1,15 +1,14 @@
 import User from "../models/user.js";
+import MedicalHistory from "../models/medical-history.js";
 import { logUserActivityAndRequest } from "../middleware/logger.js";
 import { handlePasswordChange } from "../utils/user.js";
 import mongoose from "mongoose";
 import Conversation from "../models/conversation.js";
 import crypto from "crypto";
-import jwt from "jsonwebtoken";
 import { sendEmail } from "../utils/mailer.js";
 import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
-import { setCookie, clearCookie } from "../utils/cookies.js";
 
 export const updateAccount = async (req, res, next) => {
   try {
@@ -40,14 +39,13 @@ export const updateAccount = async (req, res, next) => {
       const otp = crypto.randomInt(1000, 9999).toString();
       const expiration = new Date(Date.now() + 10 * 60 * 1000);
       
-      // Store temporary update data
-      const tempUpdate = {
-        userId: user._id,
+      // Store OTP data directly in user document temporarily
+      user.tempEmailUpdate = {
         newEmail: email,
         otp,
-        expiration,
-        originalEmail: user.email
+        expiration
       };
+      await user.save();
       
       // Send verification email
       const __filename = fileURLToPath(import.meta.url);
@@ -58,15 +56,6 @@ export const updateAccount = async (req, res, next) => {
       html = html.replace("${OTP}", otp);
       
       await sendEmail(email, "Verify Your Email Update - Cutis", html);
-      
-      // Store temporary data in JWT token
-      const tempToken = jwt.sign(
-        { tempUpdate },
-        process.env.JWT_SECRET,
-        { expiresIn: "10m" }
-      );
-      
-      setCookie(res, 'temp_update', tempToken);
       
       // Log the OTP request
       await logUserActivityAndRequest({
@@ -102,41 +91,35 @@ export const updateAccount = async (req, res, next) => {
 // New function to verify email update OTP
 export const verifyEmailUpdate = async (req, res, next) => {
   const { otp } = req.body;
-  const tempToken = req.cookies.temp_update;
+  const userId = req.user.id || req.user._id;
   
   try {
-    if (!tempToken) {
-      return res.status(400).json({ error: "Update session expired. Please try again." });
-    }
-    
-    const decoded = jwt.verify(tempToken, process.env.JWT_SECRET);
-    const tempUpdate = decoded.tempUpdate;
-    
-    if (!tempUpdate) {
-      return res.status(400).json({ error: "Invalid update session" });
-    }
-    
-    // Check if OTP matches and hasn't expired
-    if (tempUpdate.otp !== otp) {
-      return res.status(400).json({ error: "Invalid OTP" });
-    }
-    
-    if (new Date() > tempUpdate.expiration) {
-      return res.status(400).json({ error: "OTP has expired. Please request a new one." });
-    }
-    
-    // OTP is valid, proceed with email update
-    const user = await User.findById(tempUpdate.userId);
+    const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
     
-    // Update the email
-    user.email = tempUpdate.newEmail;
-    await user.save();
+    if (!user.tempEmailUpdate) {
+      return res.status(400).json({ error: "No email update session found. Please try updating your email again." });
+    }
     
-    // Clear temporary update cookie
-    clearCookie(res, "temp_update");
+    // Check if OTP matches and hasn't expired
+    if (user.tempEmailUpdate.otp !== otp) {
+      return res.status(400).json({ error: "Invalid OTP" });
+    }
+    
+    if (new Date() > user.tempEmailUpdate.expiration) {
+      // Clear expired temp data
+      user.tempEmailUpdate = undefined;
+      await user.save();
+      return res.status(400).json({ error: "OTP has expired. Please request a new one." });
+    }
+    
+    // OTP is valid, proceed with email update
+    const newEmail = user.tempEmailUpdate.newEmail;
+    user.email = newEmail;
+    user.tempEmailUpdate = undefined; // Clear temp data
+    await user.save();
     
     // Log the successful email update
     await logUserActivityAndRequest({
@@ -159,12 +142,6 @@ export const verifyEmailUpdate = async (req, res, next) => {
     });
     
   } catch (err) {
-    if (err.name === 'JsonWebTokenError') {
-      return res.status(400).json({ error: "Invalid update session" });
-    }
-    if (err.name === 'TokenExpiredError') {
-      return res.status(400).json({ error: "Update session expired" });
-    }
     next(err);
   }
 };
@@ -172,22 +149,27 @@ export const verifyEmailUpdate = async (req, res, next) => {
 export const getAllMedicalHistory = async (req, res, next) => {
   try {
     const userId = req.user.id || req.user._id;
-    const user = await User.findById(userId);
 
-    if (!user) {
-      return next({ status: 404, message: "User not found." });
-    }
+    const history = await MedicalHistory.find({ user_id: userId })
+      .populate('condition_id')
+      .sort({ diagnosis_date: -1 });
 
-    const simplifiedHistory = user.medical_history
-      .slice()
-      .reverse()
-      .map((entry) => ({
-        id: entry._id,
-        upload_skin: entry.upload_skin,
-        diagnosis_date: entry.diagnosis_date,
-        condition_description: entry.condition?.description || "",
-        severity: entry.condition?.severity || "",
-      }));
+    const simplifiedHistory = history.map((entry) => ({
+      _id: entry._id,
+      id: entry._id,
+      upload_skin: entry.upload_skin,
+      diagnosis_date: entry.diagnosis_date,
+      condition: {
+        description: entry.condition_id?.description || "",
+        severity: entry.condition_id?.severity || "",
+        name: entry.condition_id?.name || "",
+        recommendation: entry.condition_id?.recommendation || ""
+      },
+      condition_description: entry.condition_id?.description || "",
+      severity: entry.condition_id?.severity || "",
+      treatment_recommendation: entry.treatment_recommendation || "",
+      created_at: entry.created_at
+    }));
 
     res.status(200).json({
       success: true,
@@ -201,28 +183,43 @@ export const getAllMedicalHistory = async (req, res, next) => {
 export const getMedicalHistoryById = async (req, res, next) => {
   try {
     const userId = req.user.id || req.user._id;
-
     const historyId = req.params.id;
 
     if (!mongoose.Types.ObjectId.isValid(historyId)) {
       return next({ status: 400, message: "Invalid history ID format" });
     }
 
-    const user = await User.findById(userId);
-
-    if (!user) {
-      return next({ status: 404, message: "User not found." });
-    }
-
-    const historyEntry = user.medical_history.id(historyId);
+    const historyEntry = await MedicalHistory.findOne({ _id: historyId, user_id: userId })
+      .populate('condition_id')
+      .populate('specialists')
+      .populate('clinics')
+      .lean();
 
     if (!historyEntry) {
       return next({ status: 404, message: "Medical history entry not found" });
     }
 
+    // Transform to match old schema structure
+    const transformedHistory = {
+      _id: historyEntry._id,
+      upload_skin: historyEntry.upload_skin,
+      diagnosis_date: historyEntry.diagnosis_date,
+      treatment_recommendation: historyEntry.treatment_recommendation,
+      created_at: historyEntry.created_at,
+      condition: historyEntry.condition_id ? {
+        _id: historyEntry.condition_id._id,
+        name: historyEntry.condition_id.name,
+        description: historyEntry.condition_id.description,
+        severity: historyEntry.condition_id.severity,
+        recommendation: historyEntry.condition_id.recommendation
+      } : null,
+      specialists: historyEntry.specialists || [],
+      clinics: historyEntry.clinics || []
+    };
+
     res.status(200).json({
       success: true,
-      history: historyEntry,
+      history: transformedHistory,
     });
   } catch (error) {
     next(error);
@@ -238,23 +235,16 @@ export const deleteMedicalHistoryById = async (req, res, next) => {
       return next({ status: 400, message: "Invalid history ID format" });
     }
 
-    const user = await User.findById(userId);
-    if (!user) {
-      return next({ status: 404, message: "User not found." });
-    }
+    const result = await MedicalHistory.findOneAndDelete({ _id: historyId, user_id: userId });
 
-    const result = await User.updateOne(
-      { _id: userId },
-      { $pull: { medical_history: { _id: historyId } } }
-    );
-    if (result.modifiedCount === 0) {
+    if (!result) {
       return next({ status: 404, message: "Medical history entry not found" });
     }
     
     // Delete all conversations referencing this medical history entry
     await Conversation.deleteMany({ user: userId, medicalHistory: historyId });
     await logUserActivityAndRequest({
-      userId: user._id,
+      userId: userId,
       action: "Delete Medical History",
       module: "Medical Records",
       status: "Success",

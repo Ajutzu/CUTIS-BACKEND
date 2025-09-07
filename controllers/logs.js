@@ -1,5 +1,7 @@
 // Logs controller for fetching activity logs
 import User from '../models/user.js';
+import ActivityLog from '../models/activity-log.js';
+import RequestLog from '../models/request-log.js';
 
 // Get all activity logs with pagination
 export const getAllActivityLogs = async (req, res, next) => {
@@ -8,54 +10,35 @@ export const getAllActivityLogs = async (req, res, next) => {
         const limit = parseInt(req.query.limit) || 20;
         const skip = (page - 1) * limit;
 
-        // Aggregate to get all activity logs from all users with pagination
-        const logs = await User.aggregate([
-            // Unwind the activity_logs array
-            { $unwind: '$activity_logs' },
-            
-            // Sort by timestamp (newest first)
-            { $sort: { 'activity_logs.timestamp': -1 } },
-            
-            // Add user information to each log
+        const total = await ActivityLog.countDocuments();
+
+        const logs = await ActivityLog.aggregate([
+            { $sort: { timestamp: -1 } },
+            { $skip: skip },
+            { $limit: limit },
             {
                 $lookup: {
                     from: 'users',
-                    localField: '_id',
+                    localField: 'user_id',
                     foreignField: '_id',
                     as: 'userInfo'
                 }
             },
-            
-            // Unwind userInfo array
             { $unwind: '$userInfo' },
-            
-            // Project the fields we want
             {
                 $project: {
-                    _id: '$activity_logs._id',
-                    action: '$activity_logs.action',
-                    module: '$activity_logs.module',
-                    status: '$activity_logs.status',
-                    timestamp: '$activity_logs.timestamp',
+                    _id: '$_id',
+                    action: '$action',
+                    module: '$module',
+                    status: '$status',
+                    timestamp: '$timestamp',
                     userId: '$userInfo._id',
                     userName: '$userInfo.name',
                     userEmail: '$userInfo.email',
                     userRole: '$userInfo.role'
                 }
-            },
-            
-            // Skip and limit for pagination
-            { $skip: skip },
-            { $limit: limit }
+            }
         ]);
-
-        // Get total count for pagination
-        const totalLogs = await User.aggregate([
-            { $unwind: '$activity_logs' },
-            { $count: 'total' }
-        ]);
-
-        const total = totalLogs.length > 0 ? totalLogs[0].total : 0;
         const totalPages = Math.ceil(total / limit);
 
         res.status(200).json({
@@ -101,45 +84,38 @@ export const getUserActivityLogsByName = async (req, res, next) => {
             });
         }
 
-        // Get activity logs for all matching users with pagination
-        const logs = await User.aggregate([
-            // Match users with the name pattern
-            { $match: { name: nameRegex } },
-            
-            // Unwind the activity_logs array
-            { $unwind: '$activity_logs' },
-            
-            // Sort by timestamp (newest first)
-            { $sort: { 'activity_logs.timestamp': -1 } },
-            
-            // Project the fields we want
+        const userIds = matchingUsers.map(u => u._id);
+
+        const total = await ActivityLog.countDocuments({ user_id: { $in: userIds } });
+
+        const logs = await ActivityLog.aggregate([
+            { $match: { user_id: { $in: userIds } } },
+            { $sort: { timestamp: -1 } },
+            { $skip: skip },
+            { $limit: limit },
             {
-                $project: {
-                    _id: '$activity_logs._id',
-                    action: '$activity_logs.action',
-                    module: '$activity_logs.module',
-                    status: '$activity_logs.status',
-                    timestamp: '$activity_logs.timestamp',
-                    userId: '$_id',
-                    userName: '$name',
-                    userEmail: '$email',
-                    userRole: '$role'
+                $lookup: {
+                    from: 'users',
+                    localField: 'user_id',
+                    foreignField: '_id',
+                    as: 'userInfo'
                 }
             },
-            
-            // Skip and limit for pagination
-            { $skip: skip },
-            { $limit: limit }
+            { $unwind: '$userInfo' },
+            {
+                $project: {
+                    _id: '$_id',
+                    action: '$action',
+                    module: '$module',
+                    status: '$status',
+                    timestamp: '$timestamp',
+                    userId: '$userInfo._id',
+                    userName: '$userInfo.name',
+                    userEmail: '$userInfo.email',
+                    userRole: '$userInfo.role'
+                }
+            }
         ]);
-
-        // Get total count for pagination
-        const totalLogs = await User.aggregate([
-            { $match: { name: nameRegex } },
-            { $unwind: '$activity_logs' },
-            { $count: 'total' }
-        ]);
-
-        const total = totalLogs.length > 0 ? totalLogs[0].total : 0;
         const totalPages = Math.ceil(total / limit);
 
         res.status(200).json({
@@ -179,14 +155,18 @@ export const getLogsByModule = async (req, res, next) => {
         const limit = parseInt(req.query.limit) || 20;
         const skip = (page - 1) * limit;
 
-        const logs = await User.aggregate([
-            { $unwind: '$activity_logs' },
-            { $match: { 'activity_logs.module': module } },
-            { $sort: { 'activity_logs.timestamp': -1 } },
+        const filter = { module };
+        const total = await ActivityLog.countDocuments(filter);
+
+        const logs = await ActivityLog.aggregate([
+            { $match: filter },
+            { $sort: { timestamp: -1 } },
+            { $skip: skip },
+            { $limit: limit },
             {
                 $lookup: {
                     from: 'users',
-                    localField: '_id',
+                    localField: 'user_id',
                     foreignField: '_id',
                     as: 'userInfo'
                 }
@@ -194,29 +174,18 @@ export const getLogsByModule = async (req, res, next) => {
             { $unwind: '$userInfo' },
             {
                 $project: {
-                    _id: '$activity_logs._id',
-                    action: '$activity_logs.action',
-                    module: '$activity_logs.module',
-                    status: '$activity_logs.status',
-                    timestamp: '$activity_logs.timestamp',
+                    _id: '$_id',
+                    action: '$action',
+                    module: '$module',
+                    status: '$status',
+                    timestamp: '$timestamp',
                     userId: '$userInfo._id',
                     userName: '$userInfo.name',
                     userEmail: '$userInfo.email',
                     userRole: '$userInfo.role'
                 }
-            },
-            { $skip: skip },
-            { $limit: limit }
+            }
         ]);
-
-        // Get total count for this module
-        const totalLogs = await User.aggregate([
-            { $unwind: '$activity_logs' },
-            { $match: { 'activity_logs.module': module } },
-            { $count: 'total' }
-        ]);
-
-        const total = totalLogs.length > 0 ? totalLogs[0].total : 0;
         const totalPages = Math.ceil(total / limit);
 
         res.status(200).json({
@@ -248,14 +217,14 @@ export const getRecentActivityLogs = async (req, res, next) => {
         const limit = parseInt(req.query.limit) || 50;
         const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-        const logs = await User.aggregate([
-            { $unwind: '$activity_logs' },
-            { $match: { 'activity_logs.timestamp': { $gte: twentyFourHoursAgo } } },
-            { $sort: { 'activity_logs.timestamp': -1 } },
+        const logs = await ActivityLog.aggregate([
+            { $match: { timestamp: { $gte: twentyFourHoursAgo } } },
+            { $sort: { timestamp: -1 } },
+            { $limit: limit },
             {
                 $lookup: {
                     from: 'users',
-                    localField: '_id',
+                    localField: 'user_id',
                     foreignField: '_id',
                     as: 'userInfo'
                 }
@@ -263,18 +232,17 @@ export const getRecentActivityLogs = async (req, res, next) => {
             { $unwind: '$userInfo' },
             {
                 $project: {
-                    _id: '$activity_logs._id',
-                    action: '$activity_logs.action',
-                    module: '$activity_logs.module',
-                    status: '$activity_logs.status',
-                    timestamp: '$activity_logs.timestamp',
+                    _id: '$_id',
+                    action: '$action',
+                    module: '$module',
+                    status: '$status',
+                    timestamp: '$timestamp',
                     userId: '$userInfo._id',
                     userName: '$userInfo.name',
                     userEmail: '$userInfo.email',
                     userRole: '$userInfo.role'
                 }
-            },
-            { $limit: limit }
+            }
         ]);
 
         res.status(200).json({
@@ -301,55 +269,36 @@ export const getAllRequestLogs = async (req, res, next) => {
         const limit = parseInt(req.query.limit) || 20;
         const skip = (page - 1) * limit;
 
-        // Aggregate to get all request logs from all users with pagination
-        const logs = await User.aggregate([
-            // Unwind the request_logs array
-            { $unwind: '$request_logs' },
-            
-            // Sort by timestamp (newest first)
-            { $sort: { 'request_logs.timestamp': -1 } },
-            
-            // Add user information to each log
+        const total = await RequestLog.countDocuments();
+
+        const logs = await RequestLog.aggregate([
+            { $sort: { timestamp: -1 } },
+            { $skip: skip },
+            { $limit: limit },
             {
                 $lookup: {
                     from: 'users',
-                    localField: '_id',
+                    localField: 'user_id',
                     foreignField: '_id',
                     as: 'userInfo'
                 }
             },
-            
-            // Unwind userInfo array
             { $unwind: '$userInfo' },
-            
-            // Project the fields we want
             {
                 $project: {
-                    _id: '$request_logs._id',
-                    device_name: '$request_logs.device_name',
-                    method: '$request_logs.method',
-                    ip_address: '$request_logs.ip_address',
-                    status: '$request_logs.status',
-                    timestamp: '$request_logs.timestamp',
+                    _id: '$_id',
+                    device_name: '$device_name',
+                    method: '$method',
+                    ip_address: '$ip_address',
+                    status: '$status',
+                    timestamp: '$timestamp',
                     userId: '$userInfo._id',
                     userName: '$userInfo.name',
                     userEmail: '$userInfo.email',
                     userRole: '$userInfo.role'
                 }
-            },
-            
-            // Skip and limit for pagination
-            { $skip: skip },
-            { $limit: limit }
+            }
         ]);
-
-        // Get total count for pagination
-        const totalLogs = await User.aggregate([
-            { $unwind: '$request_logs' },
-            { $count: 'total' }
-        ]);
-
-        const total = totalLogs.length > 0 ? totalLogs[0].total : 0;
         const totalPages = Math.ceil(total / limit);
 
         res.status(200).json({
@@ -395,46 +344,39 @@ export const getUserRequestLogsByName = async (req, res, next) => {
             });
         }
 
-        // Get request logs for all matching users with pagination
-        const logs = await User.aggregate([
-            // Match users with the name pattern
-            { $match: { name: nameRegex } },
-            
-            // Unwind the request_logs array
-            { $unwind: '$request_logs' },
-            
-            // Sort by timestamp (newest first)
-            { $sort: { 'request_logs.timestamp': -1 } },
-            
-            // Project the fields we want
+        const userIds = matchingUsers.map(u => u._id);
+
+        const total = await RequestLog.countDocuments({ user_id: { $in: userIds } });
+
+        const logs = await RequestLog.aggregate([
+            { $match: { user_id: { $in: userIds } } },
+            { $sort: { timestamp: -1 } },
+            { $skip: skip },
+            { $limit: limit },
             {
-                $project: {
-                    _id: '$request_logs._id',
-                    device_name: '$request_logs.device_name',
-                    method: '$request_logs.method',
-                    ip_address: '$request_logs.ip_address',
-                    status: '$request_logs.status',
-                    timestamp: '$request_logs.timestamp',
-                    userId: '$_id',
-                    userName: '$name',
-                    userEmail: '$email',
-                    userRole: '$role'
+                $lookup: {
+                    from: 'users',
+                    localField: 'user_id',
+                    foreignField: '_id',
+                    as: 'userInfo'
                 }
             },
-            
-            // Skip and limit for pagination
-            { $skip: skip },
-            { $limit: limit }
+            { $unwind: '$userInfo' },
+            {
+                $project: {
+                    _id: '$_id',
+                    device_name: '$device_name',
+                    method: '$method',
+                    ip_address: '$ip_address',
+                    status: '$status',
+                    timestamp: '$timestamp',
+                    userId: '$userInfo._id',
+                    userName: '$userInfo.name',
+                    userEmail: '$userInfo.email',
+                    userRole: '$userInfo.role'
+                }
+            }
         ]);
-
-        // Get total count for pagination
-        const totalLogs = await User.aggregate([
-            { $match: { name: nameRegex } },
-            { $unwind: '$request_logs' },
-            { $count: 'total' }
-        ]);
-
-        const total = totalLogs.length > 0 ? totalLogs[0].total : 0;
         const totalPages = Math.ceil(total / limit);
 
         res.status(200).json({
@@ -474,14 +416,18 @@ export const getRequestLogsByMethod = async (req, res, next) => {
         const limit = parseInt(req.query.limit) || 20;
         const skip = (page - 1) * limit;
 
-        const logs = await User.aggregate([
-            { $unwind: '$request_logs' },
-            { $match: { 'request_logs.method': method.toUpperCase() } },
-            { $sort: { 'request_logs.timestamp': -1 } },
+        const filter = { method: method.toUpperCase() };
+        const total = await RequestLog.countDocuments(filter);
+
+        const logs = await RequestLog.aggregate([
+            { $match: filter },
+            { $sort: { timestamp: -1 } },
+            { $skip: skip },
+            { $limit: limit },
             {
                 $lookup: {
                     from: 'users',
-                    localField: '_id',
+                    localField: 'user_id',
                     foreignField: '_id',
                     as: 'userInfo'
                 }
@@ -489,30 +435,19 @@ export const getRequestLogsByMethod = async (req, res, next) => {
             { $unwind: '$userInfo' },
             {
                 $project: {
-                    _id: '$request_logs._id',
-                    device_name: '$request_logs.device_name',
-                    method: '$request_logs.method',
-                    ip_address: '$request_logs.ip_address',
-                    status: '$request_logs.status',
-                    timestamp: '$request_logs.timestamp',
+                    _id: '$_id',
+                    device_name: '$device_name',
+                    method: '$method',
+                    ip_address: '$ip_address',
+                    status: '$status',
+                    timestamp: '$timestamp',
                     userId: '$userInfo._id',
                     userName: '$userInfo.name',
                     userEmail: '$userInfo.email',
                     userRole: '$userInfo.role'
                 }
-            },
-            { $skip: skip },
-            { $limit: limit }
+            }
         ]);
-
-        // Get total count for this method
-        const totalLogs = await User.aggregate([
-            { $unwind: '$request_logs' },
-            { $match: { 'request_logs.method': method.toUpperCase() } },
-            { $count: 'total' }
-        ]);
-
-        const total = totalLogs.length > 0 ? totalLogs[0].total : 0;
         const totalPages = Math.ceil(total / limit);
 
         res.status(200).json({
@@ -544,14 +479,14 @@ export const getRecentRequestLogs = async (req, res, next) => {
         const limit = parseInt(req.query.limit) || 50;
         const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-        const logs = await User.aggregate([
-            { $unwind: '$request_logs' },
-            { $match: { 'request_logs.timestamp': { $gte: twentyFourHoursAgo } } },
-            { $sort: { 'request_logs.timestamp': -1 } },
+        const logs = await RequestLog.aggregate([
+            { $match: { timestamp: { $gte: twentyFourHoursAgo } } },
+            { $sort: { timestamp: -1 } },
+            { $limit: limit },
             {
                 $lookup: {
                     from: 'users',
-                    localField: '_id',
+                    localField: 'user_id',
                     foreignField: '_id',
                     as: 'userInfo'
                 }
@@ -559,19 +494,18 @@ export const getRecentRequestLogs = async (req, res, next) => {
             { $unwind: '$userInfo' },
             {
                 $project: {
-                    _id: '$request_logs._id',
-                    device_name: '$request_logs.device_name',
-                    method: '$request_logs.method',
-                    ip_address: '$request_logs.ip_address',
-                    status: '$request_logs.status',
-                    timestamp: '$request_logs.timestamp',
+                    _id: '$_id',
+                    device_name: '$device_name',
+                    method: '$method',
+                    ip_address: '$ip_address',
+                    status: '$status',
+                    timestamp: '$timestamp',
                     userId: '$userInfo._id',
                     userName: '$userInfo.name',
                     userEmail: '$userInfo.email',
                     userRole: '$userInfo.role'
                 }
-            },
-            { $limit: limit }
+            }
         ]);
 
         res.status(200).json({

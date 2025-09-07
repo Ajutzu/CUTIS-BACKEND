@@ -7,14 +7,22 @@ import colors from 'colors';
 // Importing database connection
 import connectToCutisDB from './database/connection.js';
 
-// Importing models
+// Importing cache and normal storage models
 import './models/article.js';
 import './models/condition.js';
-import './models/user.js';
 import './models/result.js';
 import './models/maps.js';
 import './models/conversation.js';
 import './models/maps.js';
+
+// Imoprting users storage functionalities
+export { default as User } from './models/user.js';
+export { default as ConditionHistory } from './models/condition-history.js';
+export { default as SpecialistHistory } from './models/specialist-history.js';
+export { default as ClinicHistory } from './models/clinic-history.js';
+export { default as MedicalHistory } from './models/medical-history.js';
+export { default as ActivityLog } from './models/activity-log.js';
+export { default as RequestLog } from './models/request-log.js';
 
 // Importing routes
 import authRoutes from './routes/auth.js';
@@ -49,7 +57,6 @@ server.use(cors({
   },
   credentials: true,
 }));
-  
 
 server.use(express.json());
 server.use(cookieParser());

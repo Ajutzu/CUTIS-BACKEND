@@ -28,13 +28,23 @@ async function fetchFromSerper(query, location, type = null) {
 
 // function to check cache and update
 async function checkAndUpdateCache(condition, location, type) {
-  const cachedResult = await SearchResult.findOne({
-    condition,
-    location,
-  });
+  try {
+    const cachedResult = await SearchResult.findOne({
+      condition,
+      location,
+    });
 
-  if (cachedResult) {
-    return type === 'clinics' ? cachedResult.clinics : cachedResult.specialists;
+    if (cachedResult) {
+      // Check if cache is still fresh (optional: add cache expiry logic)
+      const cacheAge = Date.now() - cachedResult.lastFetched.getTime();
+      const maxCacheAge = 24 * 60 * 60 * 1000; // 24 hours
+      
+      if (cacheAge < maxCacheAge) {
+        return type === 'clinics' ? cachedResult.clinics : cachedResult.specialists;
+      }
+    }
+  } catch (error) {
+    console.warn("Error checking cache:", error.message);
   }
   return null;
 }
@@ -362,11 +372,10 @@ async function scrapeDermatologists(condition, location) {
     // Cache the results
     try {
       await SearchResult.findOneAndUpdate(
-        { location, condition, type: 'specialists' }, // Added type field for better indexing
+        { location, condition },
         { 
           specialists: topSpecialists,
-          lastUpdated: new Date(),
-          searchQueries: queries[0] // Store which query worked
+          lastFetched: new Date()
         },
         { upsert: true }
       );

@@ -63,9 +63,10 @@ export const classifyImage = async (req, res, next) => {
       }
 
       let medicalHistoryAdded = false;
+      let historyId = null;
 
       if (userId) {
-        medicalHistoryAdded = await addMedicalHistory(
+        const historyResult = await addMedicalHistory(
           userId,
           classification,
           uploadResult.secure_url,
@@ -74,6 +75,13 @@ export const classifyImage = async (req, res, next) => {
           specialists,
           clinics
         );
+        
+        if (historyResult && typeof historyResult === 'object') {
+          medicalHistoryAdded = historyResult.success;
+          historyId = historyResult.historyId;
+        } else {
+          medicalHistoryAdded = !!historyResult;
+        }
 
         await logUserActivityAndRequest({
           userId,
@@ -89,14 +97,25 @@ export const classifyImage = async (req, res, next) => {
       await cloudinary.uploader.destroy(imagePublicId);
 
       res.json({
+        success: true,
         ...data,
         imageUrl: uploadResult.secure_url,
         recommendation,
         severity,
         medicalHistoryAdded,
         conditionFound: !!condition,
-        specialists: specialists,
-        clinics: clinics,
+        condition: condition ? {
+          name: condition.name || classification,
+          description: condition.description || "",
+          severity: condition.severity || severity,
+          recommendation: condition.recommendation || recommendation
+        } : null,
+        specialists: Array.isArray(specialists) ? specialists : [],
+        clinics: Array.isArray(clinics) ? clinics : [],
+        classification: classification,
+        confidence: confidence,
+        confidencePercentage: (confidence * 100).toFixed(1),
+        historyId: historyId
       });
     } else {
       res.json(data);

@@ -8,14 +8,15 @@ import { logUserActivityAndRequest } from "../middleware/logger.js";
 import { sendEmail } from "../utils/mailer.js";
 import fs from "fs/promises";
 import path from "path";
-import { fileURLToPath } from "url";
+import { fileURLToPath } from "url";  
 import { OAuth2Client } from "google-auth-library";
-import { setCookie, clearCookie} from "../utils/cookies.js";
+import { setCookie } from "../utils/cookies.js";
 
 dotenv.config();
 
 // Google OAuth
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+// Google Login
 export const googleLogin = async (req, res, next) => {
   try {
     const { token } = req.body;
@@ -39,12 +40,11 @@ export const googleLogin = async (req, res, next) => {
         email,
         password: crypto.randomBytes(32).toString("hex"),
         role: "User",
-        is_active: true, // ✅ new user is active
+        is_active: true,
       });
       await user.save();
       isNewUser = true;
     } else {
-      // ✅ set active when logging in
       user.is_active = true;
       await user.save();
     }
@@ -68,10 +68,13 @@ export const googleLogin = async (req, res, next) => {
       req,
     });
 
+    // ✅ set cookie
     setCookie(res, "auth", yourToken);
 
+    // ✅ also return token in response body as fallback
     res.status(200).json({
       message: "Google login successful",
+      token: yourToken, // <-- fallback here
       user: {
         id: user._id,
         name: user.name,
@@ -96,7 +99,6 @@ export const loginUser = async (req, res, next) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return next({ status: 400, error: "Invalid email or password" });
 
-    // ✅ set active when logging in
     user.is_active = true;
     await user.save();
 
@@ -119,10 +121,13 @@ export const loginUser = async (req, res, next) => {
       req,
     });
 
+    // ✅ set cookie
     setCookie(res, "auth", token);
 
+    // ✅ also return token in response body as fallback
     res.json({
       message: "Login Successfully",
+      token, // <-- fallback here
       user: {
         id: user._id,
         name: user.name,
@@ -149,17 +154,21 @@ export const registerUser = async (req, res, next) => {
     const otp = crypto.randomInt(1000, 9999).toString();
     const expiration = new Date(Date.now() + 10 * 60 * 1000);
 
-    // Store registration data temporarily (you might want to use Redis or a temporary collection)
-    // For now, we'll store it in a temporary user object
-    const tempUser = {
+    // Create temporary user with OTP data
+    const tempUser = new User({
       name,
       email,
-      password,
+      password: await bcrypt.hash(password, 10),
       role,
-      otp,
-      expiration,
-      isVerified: false
-    };
+      is_active: false, // Not active until verified
+      tempRegistration: {
+        otp,
+        expiration,
+        isVerified: false
+      }
+    });
+    
+    await tempUser.save();
 
     // Send verification email
     const __filename = fileURLToPath(import.meta.url);
@@ -170,16 +179,6 @@ export const registerUser = async (req, res, next) => {
     html = html.replace("${OTP}", otp);
     
     await sendEmail(email, "Verify Your Email - Cutis Registration", html);
-
-    // Store temporary data in session or temporary storage
-    // For now, we'll use a simple approach with cookies
-    const tempToken = jwt.sign(
-      { tempUser },
-      process.env.JWT_SECRET,
-      { expiresIn: "10m" }
-    );
-
-    setCookie(res, 'temp_reg', tempToken);
 
     // Logger
     await logUserActivityAndRequest({
@@ -201,41 +200,34 @@ export const registerUser = async (req, res, next) => {
 
 // Registration - Step 2: Verify OTP and Complete Registration
 export const verifyRegistrationOTP = async (req, res, next) => {
-  const { otp } = req.body;
-  const tempToken = req.cookies.temp_reg;
+  const { otp, email } = req.body;
 
   try {
-    if (!tempToken) {
-      return res.status(400).json({ error: "Registration session expired. Please try again." });
+    const user = await User.findOne({ email });
+    
+    if (!user) {
+      return res.status(400).json({ error: "Registration session not found. Please try registering again." });
     }
 
-    const decoded = jwt.verify(tempToken, process.env.JWT_SECRET);
-    const tempUser = decoded.tempUser;
-
-    if (!tempUser) {
-      return res.status(400).json({ error: "Invalid registration session" });
+    if (!user.tempRegistration) {
+      return res.status(400).json({ error: "No verification session found. Please try registering again." });
     }
 
     // Check if OTP matches and hasn't expired
-    if (tempUser.otp !== otp) {
+    if (user.tempRegistration.otp !== otp) {
       return res.status(400).json({ error: "Invalid OTP" });
     }
 
-    if (new Date() > tempUser.expiration) {
-      return res.status(400).json({ error: "OTP has expired. Please request a new one." });
+    if (new Date() > user.tempRegistration.expiration) {
+      // Clean up expired registration
+      await User.findByIdAndDelete(user._id);
+      return res.status(400).json({ error: "OTP has expired. Please register again." });
     }
 
-    // OTP is valid, proceed with user registration
-    const hashed = await bcrypt.hash(tempUser.password, 10);
-    const newUser = new User({ 
-      name: tempUser.name, 
-      email: tempUser.email, 
-      password: hashed, 
-      role: tempUser.role,
-      is_active: true
-    });
-    
-    await newUser.save();
+    // OTP is valid, activate the user
+    user.is_active = true;
+    user.tempRegistration = undefined; // Clear temp data
+    await user.save();
 
     // Send welcome email
     const __filename = fileURLToPath(import.meta.url);
@@ -244,14 +236,11 @@ export const verifyRegistrationOTP = async (req, res, next) => {
     const welcomeTemplatePath = path.join(__dirname, "../template", "welcome.ejs");
     let welcomeHtml = await fs.readFile(welcomeTemplatePath, "utf8");
     
-    await sendEmail(tempUser.email, "Welcome to Cutis!", welcomeHtml);
-
-    // Clear temporary registration cookie
-    clearCookie(res, "temp_reg");
+    await sendEmail(user.email, "Welcome to Cutis!", welcomeHtml);
 
     // Logger
     await logUserActivityAndRequest({
-      userId: newUser._id,
+      userId: user._id,
       action: "Register",
       module: "Auth",
       status: "Success",
@@ -263,12 +252,6 @@ export const verifyRegistrationOTP = async (req, res, next) => {
     });
 
   } catch (err) {
-    if (err.name === 'JsonWebTokenError') {
-      return res.status(400).json({ error: "Invalid registration session" });
-    }
-    if (err.name === 'TokenExpiredError') {
-      return res.status(400).json({ error: "Registration session expired" });
-    }
     next(err);
   }
 };
@@ -295,14 +278,6 @@ export const forgotPassword = async (req, res, next) => {
     let html = await fs.readFile(templatePath, "utf8");
     html = html.replace("${OTP}", otp);
     await sendEmail(user.email, "Your OTP Code", html);
-
-    const token = jwt.sign(
-      {
-        email: user.email, // Add this
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: "5m" }
-    );
     
     // Logger
     await logUserActivityAndRequest({
@@ -313,9 +288,7 @@ export const forgotPassword = async (req, res, next) => {
       req,
     });
 
-    setCookie(res, 'reset', token);
-
-    res.json({ message: "OTP has been sent to your email." });
+    res.json({ success: true, message: "OTP has been sent to your email." });
   } catch (err) {
     next(err);
   }
@@ -323,8 +296,8 @@ export const forgotPassword = async (req, res, next) => {
 
 // OTP Checker
 export const OTPChecker = async (req, res, next) => {
-  const { otp } = req.body;
-  const email = req.resetEmail;
+  const { otp, email } = req.body;
+  console.log(otp, email);
 
   try {
     const user = await User.findOne({ email });
@@ -332,12 +305,15 @@ export const OTPChecker = async (req, res, next) => {
 
     const now = new Date();
     if (user.otp !== otp) return res.status(400).json({ error: "Invalid OTP" });
-    if (user.expiration < now)
+    if (user.expiration < now) {
+      // Clear expired OTP
+      user.otp = undefined;
+      user.expiration = undefined;
+      await user.save();
       return res.status(400).json({ error: "OTP has expired" });
+    }
 
-    setCookie(res, 'otp', otp);
-
-    res.json({ message: "OTP is valid" });
+    res.json({ success: true, message: "OTP is valid" });
   } catch (err) {
     next(err);
   }
@@ -345,9 +321,7 @@ export const OTPChecker = async (req, res, next) => {
 
 // Update Password
 export const updatePassword = async (req, res, next) => {
-  const { newPassword } = req.body;
-  const email = req.resetEmail;
-  const otp = req.cookies.resetOtp;
+  const { newPassword, email, otp } = req.body;
   
   try {
     const user = await User.findOne({ email });
@@ -365,10 +339,6 @@ export const updatePassword = async (req, res, next) => {
 
     await user.save();
 
-    // Clear both cookies
-    clearCookie(res, "resetToken");
-    clearCookie(res, "resetOtp");
-
     // Logger
     await logUserActivityAndRequest({
       userId: user._id,
@@ -378,7 +348,7 @@ export const updatePassword = async (req, res, next) => {
       req,
     });
 
-    res.json({ message: "Password updated successfully" });
+    res.json({ success: true, message: "Password updated successfully" });
   } catch (err) {
     next(err);
   }

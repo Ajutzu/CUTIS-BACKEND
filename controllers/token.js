@@ -2,17 +2,6 @@ import { clearCookie } from '../utils/cookies.js';
 import User from '../models/user.js';
 import jwt from "jsonwebtoken";
 
-export const resetTokenChecker = async (req, res, next) => {
-  try {
-    res.status(200).json({ message: "Reset token is valid" });
-  } catch (err) {
-    next({
-      status: 500,
-      error: err.message,
-    });
-  }
-};
-
 export const authTokenChecker = async (req, res, next) => {
   try {
     const userId = req.user.id || req.user._id;
@@ -30,8 +19,6 @@ export const authTokenChecker = async (req, res, next) => {
       latestUser.is_active = true;
     }
 
-    // Update last activity timestamp
-    latestUser.updatedAt = new Date();
     await latestUser.save();
 
     res.status(200).json({
@@ -52,8 +39,17 @@ export const authTokenChecker = async (req, res, next) => {
 
 export const logout = async (req, res, next) => {
   try {
-    const token = req.cookies?.token;
-    
+    // Try Authorization header first
+    let token = null;
+    if (req.headers.authorization && req.headers.authorization.startsWith("Bearer ")) {
+      token = req.headers.authorization.split(" ")[1];
+    }
+
+    // Fallback to cookie
+    if (!token) {
+      token = req.cookies?.token;
+    }
+
     if (!token) return res.status(200).json({ message: "Already logged out" });
 
     let decoded;
@@ -73,6 +69,7 @@ export const logout = async (req, res, next) => {
     user.is_active = false;
     await user.save();
 
+    // Clear cookie if it exists
     clearCookie(res, "token");
 
     res.status(200).json({ message: "Logged out successfully" });

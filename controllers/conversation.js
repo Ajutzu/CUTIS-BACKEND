@@ -1,5 +1,5 @@
 import Conversation from "../models/conversation.js";
-import User from "../models/user.js";
+import MedicalHistory from "../models/medical-history.js";
 import { generateAIResponse } from "../utils/conversation.js";
 
 export const startConversation = async (req, res, next) => {
@@ -12,31 +12,55 @@ export const startConversation = async (req, res, next) => {
       return next({ status: 400, message: "Message is required" });
     }
 
-    // fetch analysis report - if historyId provided use that entry, otherwise fallback to latest
-    const user = await User.findById(userId).lean();
-    if (!user || !user.medical_history || user.medical_history.length === 0) {
-      return next({ status: 400, message: "No analysis report found for user" });
-    }
+    // Fetch analysis report from the MedicalHistory collection
     let analysisReport;
     if (historyId) {
-      analysisReport = user.medical_history.find((h) => h._id.toString() === historyId);
+      analysisReport = await MedicalHistory.findOne({ _id: historyId, user_id: userId })
+        .populate('condition_id')
+        .populate('specialists')
+        .populate('clinics')
+        .lean();
       if (!analysisReport) {
-        return next({ status: 400, message: "Invalid historyId provided" });
+        return next({ status: 404, message: "Medical history not found for the given ID and user." });
       }
     } else {
-      analysisReport = user.medical_history[user.medical_history.length - 1];
+      analysisReport = await MedicalHistory.findOne({ user_id: userId })
+        .populate('condition_id')
+        .populate('specialists')
+        .populate('clinics')
+        .sort({ created_at: -1 })
+        .lean();
+      if (!analysisReport) {
+        return next({ status: 404, message: "No medical history found for this user." });
+      }
     }
+
+    // Transform to match expected format for AI conversation
+    const transformedAnalysis = {
+      _id: analysisReport._id,
+      upload_skin: analysisReport.upload_skin,
+      diagnosis_date: analysisReport.diagnosis_date,
+      treatment_recommendation: analysisReport.treatment_recommendation,
+      condition: analysisReport.condition_id ? {
+        name: analysisReport.condition_id.name,
+        description: analysisReport.condition_id.description,
+        severity: analysisReport.condition_id.severity,
+        recommendation: analysisReport.condition_id.recommendation
+      } : null,
+      specialists: analysisReport.specialists || [],
+      clinics: analysisReport.clinics || []
+    };
 
     // create conversation doc
     const convo = await Conversation.create({
       user: userId,
-      analysis: analysisReport,
-      medicalHistory: historyId ? historyId : analysisReport?._id,
+      analysis: transformedAnalysis,
+      medicalHistory: analysisReport._id,
       messages: [{ role: "user", content: message }],
     });
 
     // get AI reply
-    const aiReply = await generateAIResponse(analysisReport, [], message);
+    const aiReply = await generateAIResponse(transformedAnalysis, [], message);
 
     convo.messages.push({ role: "ai", content: aiReply });
     await convo.save();
