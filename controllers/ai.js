@@ -87,9 +87,9 @@ export const classifyImage = async (req, res, next) => {
           userId,
           action: `Classified Image (${classification}, Confidence: ${(
             confidence * 100
-          ).toFixed(1)}%)`,
+          ).toFixed(1)}%) ${confidence >= 0.9 ? "High Confidence" : "Low Confidence"}`,
           module: "AI",
-          status: confidence >= 0.9 ? "High Confidence" : "Low Confidence",
+          status: Success,
           req,
         });
       }
