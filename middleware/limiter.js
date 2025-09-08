@@ -18,7 +18,7 @@ export const loginLimiter = rateLimit({
 // Limiting the number of requests to general API routes
 export const apiLimiter = rateLimit({
     windowMs: 10 * 60 * 1000,
-    max: 500,
+    max: 300,
     handler: (req, res, next) => {
         next({
             status: 429,
