@@ -27,11 +27,15 @@ export const googleLogin = async (req, res, next) => {
     });
 
     const payload = ticket.getPayload();
-    const { email, name } = payload;
 
-    if (!email) return next({ status: 400, error: "Invalid token" });
+    const { email, name } = payload;
+    if (!email) {
+      console.log("Invalid token: no email in payload");
+      return next({ status: 400, error: "Invalid token" });
+    }
 
     let user = await User.findOne({ email });
+
 
     let isNewUser = false;
     if (!user) {
@@ -83,10 +87,13 @@ export const googleLogin = async (req, res, next) => {
         is_active: user.is_active,
       },
     });
+
   } catch (err) {
+    console.error("Google login error:", err);
     next(err);
   }
 };
+
 
 // Login
 export const loginUser = async (req, res, next) => {
@@ -141,35 +148,40 @@ export const loginUser = async (req, res, next) => {
   }
 };
 
-// Registration - Step 1: Send OTP
+// Registration - Step 1: Send OTP for Email Verification (No DB storage)
 export const registerUser = async (req, res, next) => {
   const { name, email, password, role } = req.body;
 
   try {
+    // Check if user already exists
     const existingUser = await User.findOne({ email });
     if (existingUser)
       return res.status(400).json({ error: "Email already exists" });
 
-    // Generate OTP and expiration (10 minutes)
+    // Generate OTP and expiration (5 minutes)
     const otp = crypto.randomInt(1000, 9999).toString();
-    const expiration = new Date(Date.now() + 10 * 60 * 1000);
+    const expiration = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
 
-    // Create temporary user with OTP data
-    const tempUser = new User({
+    // Store registration data temporarily in memory/cache (not in database)
+    global.pendingRegistrations = global.pendingRegistrations || new Map();
+    
+    // Create registration token for URL parameter
+    const registrationToken = crypto.randomBytes(32).toString('hex');
+    
+    global.pendingRegistrations.set(registrationToken, {
       name,
       email,
       password: await bcrypt.hash(password, 10),
       role,
-      is_active: false, // Not active until verified
-      tempRegistration: {
-        otp,
-        expiration,
-        isVerified: false
-      }
+      otp,
+      expiration
     });
-    
-    await tempUser.save();
 
+    // Auto-cleanup after 5 minutes
+    setTimeout(() => {
+      global.pendingRegistrations.delete(registrationToken);
+    }, 5 * 60 * 1000); // 5 minutes in milliseconds
+    
     // Send verification email
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
@@ -190,7 +202,8 @@ export const registerUser = async (req, res, next) => {
     });
 
     res.status(200).json({ 
-      message: "OTP verification code sent to your email. Please verify to complete registration." 
+      message: "OTP verification code sent to your email. Please verify to complete registration.",
+      registrationToken // Send token for URL parameter
     });
 
   } catch (err) {
@@ -200,34 +213,46 @@ export const registerUser = async (req, res, next) => {
 
 // Registration - Step 2: Verify OTP and Complete Registration
 export const verifyRegistrationOTP = async (req, res, next) => {
-  const { otp, email } = req.body;
+  const { otp, registrationToken } = req.body;
 
   try {
-    const user = await User.findOne({ email });
-    
-    if (!user) {
-      return res.status(400).json({ error: "Registration session not found. Please try registering again." });
+    // Get pending registration data from memory/cache
+    global.pendingRegistrations = global.pendingRegistrations || new Map();
+    const registrationData = global.pendingRegistrations.get(registrationToken);
+
+    if (!registrationData) {
+      return res.status(400).json({ 
+        error: "Registration session not found or expired. Please try registering again." 
+      });
     }
 
-    if (!user.tempRegistration) {
-      return res.status(400).json({ error: "No verification session found. Please try registering again." });
+    // Check if OTP has expired
+    if (new Date() > registrationData.expiration) {
+      // Clean up expired registration
+      global.pendingRegistrations.delete(registrationToken);
+      return res.status(400).json({ 
+        error: "OTP has expired. Please register again." 
+      });
     }
 
-    // Check if OTP matches and hasn't expired
-    if (user.tempRegistration.otp !== otp) {
+    // Check if OTP matches
+    if (registrationData.otp !== otp) {
       return res.status(400).json({ error: "Invalid OTP" });
     }
 
-    if (new Date() > user.tempRegistration.expiration) {
-      // Clean up expired registration
-      await User.findByIdAndDelete(user._id);
-      return res.status(400).json({ error: "OTP has expired. Please register again." });
-    }
+    // OTP is valid, create the user in the database
+    const newUser = new User({
+      name: registrationData.name,
+      email: registrationData.email,
+      password: registrationData.password,
+      role: registrationData.role,
+      is_active: true // User is verified
+    });
 
-    // OTP is valid, activate the user
-    user.is_active = true;
-    user.tempRegistration = undefined; // Clear temp data
-    await user.save();
+    await newUser.save();
+
+    // Clean up pending registration
+    global.pendingRegistrations.delete(registrationToken);
 
     // Send welcome email
     const __filename = fileURLToPath(import.meta.url);
@@ -235,12 +260,12 @@ export const verifyRegistrationOTP = async (req, res, next) => {
 
     const welcomeTemplatePath = path.join(__dirname, "../template", "welcome.ejs");
     let welcomeHtml = await fs.readFile(welcomeTemplatePath, "utf8");
-    
-    await sendEmail(user.email, "Welcome to Cutis!", welcomeHtml);
+
+    await sendEmail(newUser.email, "Welcome to Cutis!", welcomeHtml);
 
     // Logger
     await logUserActivityAndRequest({
-      userId: user._id,
+      userId: newUser._id,
       action: "Register",
       module: "Auth",
       status: "Success",
