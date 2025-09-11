@@ -1,5 +1,6 @@
 // Send authentication token cookie
-export const setCookie = (res, type, token) => {
+export const setCookie = (res, type, token, options = {}) => {
+  const { rememberMe = true } = options;
   const cookieConfig = {
     auth: {
       name: 'token',
@@ -8,13 +9,17 @@ export const setCookie = (res, type, token) => {
   };
 
   const config = cookieConfig[type];
-  res.cookie(config.name, token, {
+  const base = {
     httpOnly: true,
     secure: true,
     sameSite: 'None',
-    maxAge: config.maxAge,
     path: '/',
-  });
+  };
+
+  // Session cookie when rememberMe is false (no maxAge), otherwise persistent
+  const cookieOptions = rememberMe ? { ...base, maxAge: config.maxAge } : base;
+
+  res.cookie(config.name, token, cookieOptions);
 };
 
 // Clear specific token cookie

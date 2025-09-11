@@ -19,7 +19,7 @@ const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 // Google Login
 export const googleLogin = async (req, res, next) => {
   try {
-    const { token } = req.body;
+    const { token, rememberMe } = req.body;
 
     const ticket = await client.verifyIdToken({
       idToken: token,
@@ -72,8 +72,8 @@ export const googleLogin = async (req, res, next) => {
       req,
     });
 
-    // ✅ set cookie
-    setCookie(res, "auth", yourToken);
+    // ✅ set cookie honoring rememberMe
+    setCookie(res, "auth", yourToken, { rememberMe: rememberMe !== false });
 
     // ✅ also return token in response body as fallback
     res.status(200).json({
@@ -97,7 +97,7 @@ export const googleLogin = async (req, res, next) => {
 
 // Login
 export const loginUser = async (req, res, next) => {
-  const { email, password } = req.body;
+  const { email, password, rememberMe } = req.body;
 
   try {
     const user = await User.findOne({ email });
@@ -128,8 +128,8 @@ export const loginUser = async (req, res, next) => {
       req,
     });
 
-    // ✅ set cookie
-    setCookie(res, "auth", token);
+    // ✅ set cookie honoring rememberMe
+    setCookie(res, "auth", token, { rememberMe: rememberMe !== false });
 
     // ✅ also return token in response body as fallback
     res.json({
