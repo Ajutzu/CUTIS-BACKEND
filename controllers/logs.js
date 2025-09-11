@@ -24,7 +24,7 @@ export const getAllActivityLogs = async (req, res, next) => {
                     as: 'userInfo'
                 }
             },
-            { $unwind: '$userInfo' },
+            { $unwind: { path: '$userInfo', preserveNullAndEmptyArrays: true } },
             {
                 $project: {
                     _id: '$_id',
@@ -32,10 +32,10 @@ export const getAllActivityLogs = async (req, res, next) => {
                     module: '$module',
                     status: '$status',
                     timestamp: '$timestamp',
-                    userId: '$userInfo._id',
-                    userName: '$userInfo.name',
-                    userEmail: '$userInfo.email',
-                    userRole: '$userInfo.role'
+                    userId: { $ifNull: ['$userInfo._id', null] },
+                    userName: { $ifNull: ['$userInfo.name', 'Guest'] },
+                    userEmail: { $ifNull: ['$userInfo.email', 'example.gmail.com'] },
+                    userRole: { $ifNull: ['$userInfo.role', 'Guest'] }
                 }
             }
         ]);
@@ -101,7 +101,7 @@ export const getUserActivityLogsByName = async (req, res, next) => {
                     as: 'userInfo'
                 }
             },
-            { $unwind: '$userInfo' },
+            { $unwind: { path: '$userInfo', preserveNullAndEmptyArrays: true } },
             {
                 $project: {
                     _id: '$_id',
@@ -109,10 +109,10 @@ export const getUserActivityLogsByName = async (req, res, next) => {
                     module: '$module',
                     status: '$status',
                     timestamp: '$timestamp',
-                    userId: '$userInfo._id',
-                    userName: '$userInfo.name',
-                    userEmail: '$userInfo.email',
-                    userRole: '$userInfo.role'
+                    userId: { $ifNull: ['$userInfo._id', null] },
+                    userName: { $ifNull: ['$userInfo.name', 'Guest'] },
+                    userEmail: { $ifNull: ['$userInfo.email', 'example.gmail.com'] },
+                    userRole: { $ifNull: ['$userInfo.role', 'Guest'] }
                 }
             }
         ]);
@@ -171,7 +171,7 @@ export const getLogsByModule = async (req, res, next) => {
                     as: 'userInfo'
                 }
             },
-            { $unwind: '$userInfo' },
+            { $unwind: { path: '$userInfo', preserveNullAndEmptyArrays: true } },
             {
                 $project: {
                     _id: '$_id',
@@ -179,10 +179,10 @@ export const getLogsByModule = async (req, res, next) => {
                     module: '$module',
                     status: '$status',
                     timestamp: '$timestamp',
-                    userId: '$userInfo._id',
-                    userName: '$userInfo.name',
-                    userEmail: '$userInfo.email',
-                    userRole: '$userInfo.role'
+                    userId: { $ifNull: ['$userInfo._id', null] },
+                    userName: { $ifNull: ['$userInfo.name', 'Guest'] },
+                    userEmail: { $ifNull: ['$userInfo.email', null] },
+                    userRole: { $ifNull: ['$userInfo.role', 'guest'] }
                 }
             }
         ]);
@@ -229,7 +229,7 @@ export const getRecentActivityLogs = async (req, res, next) => {
                     as: 'userInfo'
                 }
             },
-            { $unwind: '$userInfo' },
+            { $unwind: { path: '$userInfo', preserveNullAndEmptyArrays: true } },
             {
                 $project: {
                     _id: '$_id',
@@ -237,10 +237,10 @@ export const getRecentActivityLogs = async (req, res, next) => {
                     module: '$module',
                     status: '$status',
                     timestamp: '$timestamp',
-                    userId: '$userInfo._id',
-                    userName: '$userInfo.name',
-                    userEmail: '$userInfo.email',
-                    userRole: '$userInfo.role'
+                    userId: { $ifNull: ['$userInfo._id', null] },
+                    userName: { $ifNull: ['$userInfo.name', 'Guest'] },
+                    userEmail: { $ifNull: ['$userInfo.email', null] },
+                    userRole: { $ifNull: ['$userInfo.role', 'guest'] }
                 }
             }
         ]);
@@ -283,7 +283,7 @@ export const getAllRequestLogs = async (req, res, next) => {
                     as: 'userInfo'
                 }
             },
-            { $unwind: '$userInfo' },
+            { $unwind: { path: '$userInfo', preserveNullAndEmptyArrays: true } },
             {
                 $project: {
                     _id: '$_id',
@@ -292,10 +292,10 @@ export const getAllRequestLogs = async (req, res, next) => {
                     ip_address: '$ip_address',
                     status: '$status',
                     timestamp: '$timestamp',
-                    userId: '$userInfo._id',
-                    userName: '$userInfo.name',
-                    userEmail: '$userInfo.email',
-                    userRole: '$userInfo.role'
+                    userId: { $ifNull: ['$userInfo._id', null] },
+                    userName: { $ifNull: ['$userInfo.name', 'Guest'] },
+                    userEmail: { $ifNull: ['$userInfo.email', 'example.gmail.com'] },
+                    userRole: { $ifNull: ['$userInfo.role', 'Guest'] }
                 }
             }
         ]);
@@ -361,7 +361,7 @@ export const getUserRequestLogsByName = async (req, res, next) => {
                     as: 'userInfo'
                 }
             },
-            { $unwind: '$userInfo' },
+            { $unwind: { path: '$userInfo', preserveNullAndEmptyArrays: true } },
             {
                 $project: {
                     _id: '$_id',
@@ -370,10 +370,10 @@ export const getUserRequestLogsByName = async (req, res, next) => {
                     ip_address: '$ip_address',
                     status: '$status',
                     timestamp: '$timestamp',
-                    userId: '$userInfo._id',
-                    userName: '$userInfo.name',
-                    userEmail: '$userInfo.email',
-                    userRole: '$userInfo.role'
+                    userId: { $ifNull: ['$userInfo._id', null] },
+                    userName: { $ifNull: ['$userInfo.name', 'Guest'] },
+                    userEmail: { $ifNull: ['$userInfo.email', 'example.gmail.com'] },
+                    userRole: { $ifNull: ['$userInfo.role', 'Guest'] }
                 }
             }
         ]);
@@ -432,7 +432,7 @@ export const getRequestLogsByMethod = async (req, res, next) => {
                     as: 'userInfo'
                 }
             },
-            { $unwind: '$userInfo' },
+            { $unwind: { path: '$userInfo', preserveNullAndEmptyArrays: true } },
             {
                 $project: {
                     _id: '$_id',
@@ -441,10 +441,10 @@ export const getRequestLogsByMethod = async (req, res, next) => {
                     ip_address: '$ip_address',
                     status: '$status',
                     timestamp: '$timestamp',
-                    userId: '$userInfo._id',
-                    userName: '$userInfo.name',
-                    userEmail: '$userInfo.email',
-                    userRole: '$userInfo.role'
+                    userId: { $ifNull: ['$userInfo._id', null] },
+                    userName: { $ifNull: ['$userInfo.name', 'Guest'] },
+                    userEmail: { $ifNull: ['$userInfo.email', 'example.gmail.com'] },
+                    userRole: { $ifNull: ['$userInfo.role', 'Guest'] }
                 }
             }
         ]);
@@ -491,7 +491,7 @@ export const getRecentRequestLogs = async (req, res, next) => {
                     as: 'userInfo'
                 }
             },
-            { $unwind: '$userInfo' },
+            { $unwind: { path: '$userInfo', preserveNullAndEmptyArrays: true } },
             {
                 $project: {
                     _id: '$_id',
@@ -500,10 +500,10 @@ export const getRecentRequestLogs = async (req, res, next) => {
                     ip_address: '$ip_address',
                     status: '$status',
                     timestamp: '$timestamp',
-                    userId: '$userInfo._id',
-                    userName: '$userInfo.name',
-                    userEmail: '$userInfo.email',
-                    userRole: '$userInfo.role'
+                    userId: { $ifNull: ['$userInfo._id', null] },
+                    userName: { $ifNull: ['$userInfo.name', 'Guest'] },
+                    userEmail: { $ifNull: ['$userInfo.email', 'example.gmail.com'] },
+                    userRole: { $ifNull: ['$userInfo.role', 'Guest'] }
                 }
             }
         ]);

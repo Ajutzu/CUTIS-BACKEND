@@ -8,26 +8,32 @@ import Clinic from '../models/clinic-history.js';
 
 // Logging middleware for user activity and requests
 export const logUserActivityAndRequest = async ({ userId, action, module, status, req }) => {
-    // Ensure user exists (preserves prior behavior of bailing out if invalid user)
-    const user = await User.findById(userId);
-    if (!user) return;
-
     const now = new Date();
     const device = (req && (req.get?.('User-Agent') || req.headers?.['user-agent'])) || 'Unknown Device';
     const ip = (req && (req.ip || req.connection?.remoteAddress || req.headers?.['x-forwarded-for'])) || 'Unknown IP';
     const method = (req && req.method) || 'GET';
 
-    // Write to dedicated collections using the new schemas
+    // Resolve user if provided; allow guest (null user)
+    let resolvedUserId = null;
+    if (userId) {
+        try {
+            const user = await User.findById(userId);
+            if (user) resolvedUserId = user._id;
+        } catch (e) {
+            resolvedUserId = null;
+        }
+    }
+
     await Promise.all([
         ActivityLog.create({
-            user_id: user._id,
+            user_id: resolvedUserId,
             action,
             module,
             status,
             timestamp: now
         }),
         RequestLog.create({
-            user_id: user._id,
+            user_id: resolvedUserId,
             device_name: device,
             ip_address: Array.isArray(ip) ? ip[0] : ip,
             status,

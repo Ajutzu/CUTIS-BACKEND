@@ -5,6 +5,7 @@ const RequestLogSchema = new Schema({
     user_id: {
         type: Schema.Types.ObjectId,
         ref: 'User',
+        required: false,
         index: true
     },
     device_name: String,
