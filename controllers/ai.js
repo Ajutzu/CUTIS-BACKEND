@@ -82,17 +82,18 @@ export const classifyImage = async (req, res, next) => {
         } else {
           medicalHistoryAdded = !!historyResult;
         }
-
-        await logUserActivityAndRequest({
-          userId,
-          action: `Classified Image (${classification}, Confidence: ${(
-            confidence * 100
-          ).toFixed(1)}%) ${confidence >= 0.9 ? "High Confidence" : "Low Confidence"}`,
-          module: "AI",
-          status: Success,
-          req,
-        });
       }
+
+      // Log activity and request for both authenticated users and guests
+      await logUserActivityAndRequest({
+        userId: userId || null,
+        action: `Classified Image (${classification}, Confidence: ${(
+          confidence * 100
+        ).toFixed(1)}%) ${confidence >= 0.9 ? "High Confidence" : "Low Confidence"}`,
+        module: "AI",
+        status: "Success",
+        req,
+      });
 
       await cloudinary.uploader.destroy(imagePublicId);
 
