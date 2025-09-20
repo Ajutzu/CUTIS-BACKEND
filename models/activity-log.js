@@ -7,11 +7,21 @@ const ActivityLogSchema = new Schema({
         type: Schema.Types.ObjectId,
         ref: 'User',
         required: false,
+        default: null,
         index: true
     },
-    action: String,
-    module: String,
-    status: String,
+    action: {
+        type: String,
+        required: true
+    },
+    module: {
+        type: String,
+        required: true
+    },
+    status: {
+        type: String,
+        required: true
+    },
     timestamp: {
         type: Date,
         default: Date.now

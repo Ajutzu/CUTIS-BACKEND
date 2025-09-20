@@ -16,9 +16,11 @@ import {
   historyBySeverity,
 } from "../controllers/dashboard.js";
 import { verifyToken, isAdmin } from "../middleware/guard.js";
+import { apiLimiter } from "../middleware/limiter.js";
 
 const router = Router();
 
+router.use(apiLimiter);
 router.use(verifyToken);
 router.use(isAdmin);
 

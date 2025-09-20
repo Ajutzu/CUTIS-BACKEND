@@ -1,12 +1,47 @@
 import rateLimit from 'express-rate-limit';
+import { logUserActivityAndRequest } from './logger.js';
 
-// Limiting the number of requests to the login route
+const loggedEvents = new Map();
+
+const logRateLimitEvent = async (req, type, moduleName, windowMs) => {
+    const userId = req.user?.userId || null;
+    const ip = req.ip || req.connection?.remoteAddress || 'unknown';
+    const key = `${type}-${moduleName}-${userId || ip}`;
+    const now = Date.now();
+    
+    const lastLogged = loggedEvents.get(key);
+    if (lastLogged && (now - lastLogged) < windowMs) {
+        return; 
+    }
+    
+    await logUserActivityAndRequest({
+        userId,
+        action: type,          
+        module: moduleName,    
+        status: 'Warning',    
+        req
+    });
+    
+    loggedEvents.set(key, now);
+    
+    if (loggedEvents.size > 5) {
+        const cutoff = now - (24 * 60 * 60 * 1000); // 24 hours
+        for (const [k, v] of loggedEvents.entries()) {
+            if (v < cutoff) {
+                loggedEvents.delete(k);
+            }
+        }
+    }
+};
+
+// Login brute-force limiter
 export const loginLimiter = rateLimit({
-    windowMs: 5 * 60 * 1000,
-    max: 10,
-    handler: (req, res, next) => {
-        next({
-            status: 429,
+    windowMs: 5 * 60 * 1000, // 5 minutes
+    max: 5,
+    handler: async (req, res) => {
+        await logRateLimitEvent(req, 'Potential Brute-Force Login', 'Threats', 5 * 60 * 1000);
+        res.status(429).json({
+            status: 'warning',
             error: 'Too many login attempts',
             message: 'Please try again in 5 minutes.'
         });
@@ -15,37 +50,37 @@ export const loginLimiter = rateLimit({
     legacyHeaders: false,
 });
 
-// Limiting the number of requests to general API routes
+// General API DDoS protection limiter
 export const apiLimiter = rateLimit({
-    windowMs: 10 * 60 * 1000,
-    max: 300,
-    handler: (req, res, next) => {
-        next({
-            status: 429,
+    windowMs: 10 * 60 * 1000, // 10 minutes
+    max: 150,
+    handler: async (req, res) => {
+        await logRateLimitEvent(req, 'Potential DDoS Detected', 'Threats', 10 * 60 * 1000);
+        res.status(429).json({
+            status: 'warning',
             error: 'Too many requests',
-            message: 'Please try again in 10 minutes.'
+            message: 'Please slow down your requests.'
         });
     },
     standardHeaders: true,
     legacyHeaders: false,
 });
 
-// Limiting the number of skin scans per day
+// Daily skin scan abuse limiter
 export const dailySkinLimiter = rateLimit({
-  windowMs: 24 * 60 * 60 * 1000, // 24 hours
-  max: (req, res) => req.user ? 5 : 3, // 5/day for logged-in, 3/day for guests
-  keyGenerator: (req, res) => {
-    if (req.user && req.user.userId) return `user-${req.user.userId}`; // logged-in
-    return `ip-${req.ip}`; // guest
-  },
-  handler: (req, res, next) => {
-    res.status(429).json({
-      error: "Daily limit reached",
-      message: req.user
-        ? "You have used all 5 skin scans today."
-        : "Guests can only use 3 skin scans per day. Please log in for more."
-    });
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
+    windowMs: 24 * 60 * 60 * 1000, // 24 hours
+    max: req => req.user ? 5 : 3,
+    keyGenerator: req => req.user?.userId ? `user-${req.user.userId}` : `ip-${req.ip}`,
+    handler: async (req, res) => {
+        await logRateLimitEvent(req, 'Potential Skin Scan Abuse', 'Threats', 24 * 60 * 60 * 1000);
+        res.status(429).json({
+            status: 'warning',
+            error: 'Daily limit reached',
+            message: req.user
+                ? "You have used all 5 skin scans today."
+                : "Guests can only use 3 skin scans per day."
+        });
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
 });

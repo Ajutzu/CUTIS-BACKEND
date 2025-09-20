@@ -20,7 +20,7 @@ import {
 export const classifyImage = async (req, res, next) => {
   try {
     const userId = req.user ? req.user.id : null;
-    
+    console.log(req.body);
     if (!req.file) {
       return next({ status: 400, message: "No image file was uploaded" });
     }
@@ -96,7 +96,7 @@ export const classifyImage = async (req, res, next) => {
       });
 
       await cloudinary.uploader.destroy(imagePublicId);
-
+      console.log("response")
       res.json({
         success: true,
         ...data,
