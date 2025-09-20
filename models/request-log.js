@@ -6,15 +6,26 @@ const RequestLogSchema = new Schema({
         type: Schema.Types.ObjectId,
         ref: 'User',
         required: false,
+        default: null,
         index: true
     },
-    device_name: String,
+    device_name: {
+        type: String,
+        required: true
+    },
     method: {
         type: String,
-        enum: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH']
+        enum: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+        required: true
     },
-    ip_address: String,
-    status: String,
+    ip_address: {
+        type: String,
+        required: true
+    },
+    status: {
+        type: String,
+        required: true
+    },
     timestamp: {
         type: Date,
         default: Date.now

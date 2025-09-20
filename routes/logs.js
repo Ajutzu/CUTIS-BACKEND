@@ -7,7 +7,7 @@ import {
     getAllRequestLogs,
     getUserRequestLogsByName,
     getRequestLogsByMethod,
-    getRecentRequestLogs
+    getRecentRequestLogs,
 } from '../controllers/logs.js';
 import { verifyToken, isAdmin } from '../middleware/guard.js';
 import { apiLimiter } from '../middleware/limiter.js';

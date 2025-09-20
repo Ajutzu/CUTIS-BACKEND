@@ -3,6 +3,8 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import colors from 'colors';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
 
 // Importing database connection
 import connectToCutisDB from './database/connection.js';
@@ -43,14 +45,26 @@ import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 
 dotenv.config();
-const server = express();
+const app = express();
+const server = createServer(app);
+
+const io = new Server(server, {
+  cors: {
+    origin: function (origin, callback) {
+      if (!origin) return callback(null, true);
+      return callback(null, true);
+    },
+    credentials: true,
+  },
+});
+
 const PORT = process.env.PORT || 3002;
 
 // For Render
-server.set('trust proxy', 1);
+app.set('trust proxy', 1);
 
 // Middleware
-server.use(cors({
+app.use(cors({
   origin: function (origin, callback) {
     if (!origin) return callback(null, true);
     return callback(null, true);
@@ -58,28 +72,47 @@ server.use(cors({
   credentials: true,
 }));
 
-server.use(express.json());
-server.use(cookieParser());
-server.use(helmet());
+app.use(express.json());
+app.use(cookieParser());
+app.use(helmet());
 
 // Routes
-server.use('/api/auth', authRoutes);
-server.use('/api/user', userRoutes);
-server.use('/api/article', articleRoutes);
-server.use('/api/token', tokenRoutes);
-server.use('/api/ai', aiRoutes);
-server.use('/api/chat', chatRoutes);
-server.use('/api/maps', mapRoutes);
-server.use('/api/conversation', conversationRoutes);
-server.use('/api/logs', logsRoutes);
-server.use('/api/management', managementRoutes);
-server.use('/api/dashboard', dashboardRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/user', userRoutes);
+app.use('/api/article', articleRoutes);
+app.use('/api/token', tokenRoutes);
+app.use('/api/ai', aiRoutes);
+app.use('/api/chat', chatRoutes);
+app.use('/api/maps', mapRoutes);
+app.use('/api/conversation', conversationRoutes);
+app.use('/api/logs', logsRoutes);
+app.use('/api/management', managementRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
-server.use(errorHandler);
+app.use(errorHandler);
+
+// Socket.IO connection handling
+io.on('connection', (socket) => {
+    console.log(colors.blue(`🔌 Admin client connected: ${socket.id}`));
+    
+    // Handle room joining
+    socket.on('join-room', (room) => {
+        socket.join(room);
+        console.log(colors.cyan(`📱 Client ${socket.id} joined room: ${room}`));
+    });
+    
+    socket.on('disconnect', () => {
+        console.log(colors.red(`🔌 Admin client disconnected: ${socket.id}`));
+    });
+});
+
+// Make io available globally for use in controllers
+global.io = io;
 
 // Start 
 server.listen(PORT, () => {
     console.log(colors.green(`🚀 Server is running on port ${PORT}`));
+    console.log(colors.cyan(`🔌 Socket.IO server is ready for connections`));
 });
 
 connectToCutisDB();
