@@ -190,6 +190,7 @@ export const registerUser = async (req, res, next) => {
     let html = await fs.readFile(templatePath, "utf8");
     html = html.replace("${OTP}", otp);
     
+    console.log("Sending Email")
     await sendEmail(email, "Verify Your Email - Cutis Registration", html);
 
     // Logger
