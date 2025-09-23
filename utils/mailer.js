@@ -20,9 +20,9 @@ export const sendEmail = async (to, subject, html) => {
 
     try {
         await transporter.sendMail(mailOptions);
-      //  console.log(colors.green(`Email sent to ${to}`));
+        console.log(colors.green(`Email sent to ${to}`));
     } catch (err) {
-      // console.error(colors.red('Email sending failed:', err));
+       console.error(colors.red('Email sending failed:', err));
         throw err;
     }
 };
