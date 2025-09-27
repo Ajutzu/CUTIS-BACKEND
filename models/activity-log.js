@@ -22,6 +22,18 @@ const ActivityLogSchema = new Schema({
         type: String,
         required: true
     },
+    // Whether this log has been seen by admins (defaults to true for non-warnings)
+    seen: {
+        type: Boolean,
+        default: true,
+        index: true
+    },
+    // Whether this log has been deleted by admins (soft delete)
+    deleted: {
+        type: Boolean,
+        default: false,
+        index: true
+    },
     timestamp: {
         type: Date,
         default: Date.now

@@ -4,6 +4,9 @@ import {
     getUserActivityLogsByName,
     getLogsByModule,
     getRecentActivityLogs,
+    toggleActivityLogSeen,
+    deleteActivityLog,
+    getWarningActivityLogs,
     getAllRequestLogs,
     getUserRequestLogsByName,
     getRequestLogsByMethod,
@@ -24,6 +27,9 @@ router.get('/', getAllActivityLogs);
 router.get('/recent', getRecentActivityLogs);
 router.get('/name/:namePattern', getUserActivityLogsByName);
 router.get('/module/:module', getLogsByModule);
+router.get('/warnings', getWarningActivityLogs);
+router.patch('/:id/seen', toggleActivityLogSeen);
+router.delete('/:id/delete', deleteActivityLog);
 
 // Request Logs Routes
 router.get('/requests', getAllRequestLogs);

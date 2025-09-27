@@ -3,7 +3,6 @@ import User from '../models/user.js';
 import ActivityLog from '../models/activity-log.js';
 import RequestLog from '../models/request-log.js';
 
-
 // Get all activity logs with pagination
 export const getAllActivityLogs = async (req, res, next) => {
     try {
@@ -11,7 +10,7 @@ export const getAllActivityLogs = async (req, res, next) => {
         const limit = parseInt(req.query.limit) || 20;
         const skip = (page - 1) * limit;
 
-        const total = await ActivityLog.countDocuments();
+        const total = await ActivityLog.countDocuments({ deleted: { $ne: true } });
 
         const logs = await ActivityLog.aggregate([
             { $sort: { timestamp: -1 } },
@@ -32,6 +31,7 @@ export const getAllActivityLogs = async (req, res, next) => {
                     action: '$action',
                     module: '$module',
                     status: '$status',
+                    seen: '$seen',
                     timestamp: '$timestamp',
                     userId: { $ifNull: ['$userInfo._id', null] },
                     userName: { $ifNull: ['$userInfo.name', 'Guest'] },
@@ -87,10 +87,10 @@ export const getUserActivityLogsByName = async (req, res, next) => {
 
         const userIds = matchingUsers.map(u => u._id);
 
-        const total = await ActivityLog.countDocuments({ user_id: { $in: userIds } });
+        const total = await ActivityLog.countDocuments({ user_id: { $in: userIds }, deleted: { $ne: true } });
 
         const logs = await ActivityLog.aggregate([
-            { $match: { user_id: { $in: userIds } } },
+            { $match: { user_id: { $in: userIds }, deleted: { $ne: true } } },
             { $sort: { timestamp: -1 } },
             { $skip: skip },
             { $limit: limit },
@@ -109,6 +109,7 @@ export const getUserActivityLogsByName = async (req, res, next) => {
                     action: '$action',
                     module: '$module',
                     status: '$status',
+                    seen: '$seen',
                     timestamp: '$timestamp',
                     userId: { $ifNull: ['$userInfo._id', null] },
                     userName: { $ifNull: ['$userInfo.name', 'Guest'] },
@@ -156,7 +157,7 @@ export const getLogsByModule = async (req, res, next) => {
         const limit = parseInt(req.query.limit) || 20;
         const skip = (page - 1) * limit;
 
-        const filter = { module };
+        const filter = { module, deleted: { $ne: true } };
         const total = await ActivityLog.countDocuments(filter);
 
         const logs = await ActivityLog.aggregate([
@@ -179,6 +180,7 @@ export const getLogsByModule = async (req, res, next) => {
                     action: '$action',
                     module: '$module',
                     status: '$status',
+                    seen: '$seen',
                     timestamp: '$timestamp',
                     userId: { $ifNull: ['$userInfo._id', null] },
                     userName: { $ifNull: ['$userInfo.name', 'Guest'] },
@@ -219,7 +221,7 @@ export const getRecentActivityLogs = async (req, res, next) => {
         const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
         const logs = await ActivityLog.aggregate([
-            { $match: { timestamp: { $gte: twentyFourHoursAgo } } },
+            { $match: { timestamp: { $gte: twentyFourHoursAgo }, deleted: { $ne: true } } },
             { $sort: { timestamp: -1 } },
             { $limit: limit },
             {
@@ -237,6 +239,7 @@ export const getRecentActivityLogs = async (req, res, next) => {
                     action: '$action',
                     module: '$module',
                     status: '$status',
+                    seen: '$seen',
                     timestamp: '$timestamp',
                     userId: { $ifNull: ['$userInfo._id', null] },
                     userName: { $ifNull: ['$userInfo.name', 'Guest'] },
@@ -260,6 +263,92 @@ export const getRecentActivityLogs = async (req, res, next) => {
             message: 'Failed to fetch recent activity logs',
             error: error.message
         });
+    }
+};
+
+// Toggle or set seen flag for an activity log
+export const toggleActivityLogSeen = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { seen } = req.body || {};
+
+        const doc = await ActivityLog.findById(id);
+        if (!doc) {
+            return res.status(404).json({ success: false, message: 'Activity log not found' });
+        }
+
+        const newSeen = typeof seen === 'boolean' ? seen : !Boolean(doc.seen);
+        doc.seen = newSeen;
+        await doc.save();
+
+        return res.status(200).json({ success: true, data: { id: doc._id, seen: doc.seen } });
+    } catch (error) {
+        console.error('Error toggling activity log seen:', error);
+        return res.status(500).json({ success: false, message: 'Failed to toggle activity log seen', error: error.message });
+    }
+};
+
+// Mark an activity log as deleted (soft delete)
+export const deleteActivityLog = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+
+        const doc = await ActivityLog.findById(id);
+        if (!doc) {
+            return res.status(404).json({ success: false, message: 'Activity log not found' });
+        }
+
+        doc.deleted = true;
+        await doc.save();
+
+        return res.status(200).json({ success: true, data: { id: doc._id, deleted: doc.deleted } });
+    } catch (error) {
+        console.error('Error deleting activity log:', error);
+        return res.status(500).json({ success: false, message: 'Failed to delete activity log', error: error.message });
+    }
+};
+
+// Fetch only warning activity logs (optionally only unseen)
+export const getWarningActivityLogs = async (req, res, next) => {
+    try {
+        const onlyUnseen = String(req.query.onlyUnseen || 'false').toLowerCase() === 'true';
+        const limit = parseInt(req.query.limit) || 100;
+
+        const match = { status: 'Warning', deleted: { $ne: true } };
+
+        const logs = await ActivityLog.aggregate([
+            { $match: match },
+            { $sort: { timestamp: -1 } },
+            { $limit: limit },
+            {
+                $lookup: {
+                    from: 'users',
+                    localField: 'user_id',
+                    foreignField: '_id',
+                    as: 'userInfo'
+                }
+            },
+            { $unwind: { path: '$userInfo', preserveNullAndEmptyArrays: true } },
+            {
+                $project: {
+                    _id: '$_id',
+                    action: '$action',
+                    module: '$module',
+                    status: '$status',
+                    seen: '$seen',
+                    timestamp: '$timestamp',
+                    userId: { $ifNull: ['$userInfo._id', null] },
+                    userName: { $ifNull: ['$userInfo.name', 'Guest'] },
+                    userEmail: { $ifNull: ['$userInfo.email', 'example.gmail.com'] },
+                    userRole: { $ifNull: ['$userInfo.role', 'Guest'] }
+                }
+            }
+        ]);
+
+        return res.status(200).json({ success: true, data: logs });
+    } catch (error) {
+        console.error('Error fetching warning activity logs:', error);
+        return res.status(500).json({ success: false, message: 'Failed to fetch warning activity logs', error: error.message });
     }
 };
 
