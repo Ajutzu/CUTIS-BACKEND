@@ -54,12 +54,13 @@ export const logUserActivityAndRequest = async ({ userId, action, module, status
         }
     }
 
-    // Create activity log
+    // Create activity log (mark warnings as unseen, others as seen)
     const activityLog = await ActivityLog.create({
         user_id: resolvedUserId,
         action,
         module,
         status,
+        seen: status === 'Warning' ? false : true,
         timestamp: now
     });
 
