@@ -1,12 +1,18 @@
 import express from 'express';
 import { apiLimiter } from '../middleware/limiter.js';
-import { updateAccount, getAllMedicalHistory, getMedicalHistoryById } from '../controllers/user.js';
+import { updateAccount, getAllMedicalHistory, getMedicalHistoryById, deleteMedicalHistoryById, verifyEmailUpdate } from '../controllers/user.js';
 import { verifyToken } from '../middleware/guard.js';
 
 const router = express.Router();
 
-router.post('/update-account', apiLimiter, verifyToken, updateAccount);
-router.get('/medical-history', apiLimiter, verifyToken, getAllMedicalHistory);
-router.get('/medical-history/:id', apiLimiter, verifyToken, getMedicalHistoryById);
+// Apply middleware to all routes
+router.use(apiLimiter);
+router.use(verifyToken);
+
+router.post('/update-account', updateAccount);
+router.post('/verify-email-update', verifyEmailUpdate);
+router.get('/medical-history', getAllMedicalHistory);
+router.get('/medical-history/:id', getMedicalHistoryById);
+router.delete('/medical-history/:id', deleteMedicalHistoryById);
 
 export default router;

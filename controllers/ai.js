@@ -16,10 +16,11 @@ import {
   scrapeDermatologists,
 } from "../utils/scrape.js";
 
+// Controller for classifying images using AI
 export const classifyImage = async (req, res, next) => {
   try {
     const userId = req.user ? req.user.id : null;
-
+    console.log(req.body);
     if (!req.file) {
       return next({ status: 400, message: "No image file was uploaded" });
     }
@@ -62,9 +63,10 @@ export const classifyImage = async (req, res, next) => {
       }
 
       let medicalHistoryAdded = false;
+      let historyId = null;
 
       if (userId) {
-        medicalHistoryAdded = await addMedicalHistory(
+        const historyResult = await addMedicalHistory(
           userId,
           classification,
           uploadResult.secure_url,
@@ -73,29 +75,48 @@ export const classifyImage = async (req, res, next) => {
           specialists,
           clinics
         );
-
-        await logUserActivityAndRequest({
-          userId,
-          action: `Classified Image (${classification}, Confidence: ${(
-            confidence * 100
-          ).toFixed(1)}%)`,
-          module: "AI",
-          status: confidence >= 0.9 ? "High Confidence" : "Low Confidence",
-          req,
-        });
+        
+        if (historyResult && typeof historyResult === 'object') {
+          medicalHistoryAdded = historyResult.success;
+          historyId = historyResult.historyId;
+        } else {
+          medicalHistoryAdded = !!historyResult;
+        }
       }
 
-      await cloudinary.uploader.destroy(imagePublicId);
+      // Log activity and request for both authenticated users and guests
+      await logUserActivityAndRequest({
+        userId: userId || null,
+        action: `Classified Image (${classification}, Confidence: ${(
+          confidence * 100
+        ).toFixed(1)}%) ${confidence >= 0.9 ? "High Confidence" : "Low Confidence"}`,
+        module: "AI",
+        status: "Success",
+        req,
+      });
 
+      await cloudinary.uploader.destroy(imagePublicId);
+      console.log("response")
       res.json({
+        success: true,
         ...data,
         imageUrl: uploadResult.secure_url,
         recommendation,
         severity,
         medicalHistoryAdded,
         conditionFound: !!condition,
-        specialists: specialists,
-        clinics: clinics,
+        condition: condition ? {
+          name: condition.name || classification,
+          description: condition.description || "",
+          severity: condition.severity || severity,
+          recommendation: condition.recommendation || recommendation
+        } : null,
+        specialists: Array.isArray(specialists) ? specialists : [],
+        clinics: Array.isArray(clinics) ? clinics : [],
+        classification: classification,
+        confidence: confidence,
+        confidencePercentage: (confidence * 100).toFixed(1),
+        historyId: historyId
       });
     } else {
       res.json(data);

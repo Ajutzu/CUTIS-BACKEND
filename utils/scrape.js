@@ -28,14 +28,23 @@ async function fetchFromSerper(query, location, type = null) {
 
 // function to check cache and update
 async function checkAndUpdateCache(condition, location, type) {
-  const cachedResult = await SearchResult.findOne({
-    condition,
-    location,
-  });
+  try {
+    const cachedResult = await SearchResult.findOne({
+      condition,
+      location,
+    });
 
-  if (cachedResult) {
-    console.log(`Using cached ${type} results from DB`);
-    return type === 'clinics' ? cachedResult.clinics : cachedResult.specialists;
+    if (cachedResult) {
+      // Check if cache is still fresh (optional: add cache expiry logic)
+      const cacheAge = Date.now() - cachedResult.lastFetched.getTime();
+      const maxCacheAge = 24 * 60 * 60 * 1000; // 24 hours
+      
+      if (cacheAge < maxCacheAge) {
+        return type === 'clinics' ? cachedResult.clinics : cachedResult.specialists;
+      }
+    }
+  } catch (error) {
+    console.warn("Error checking cache:", error.message);
   }
   return null;
 }
@@ -43,44 +52,193 @@ async function checkAndUpdateCache(condition, location, type) {
 async function scrapeDermatologyClinics(condition, location) {
   try {
     const cachedResults = await checkAndUpdateCache(condition, location, 'clinics');
-    if (cachedResults) return cachedResults;
+    if (cachedResults && cachedResults.length > 0) {
+      return cachedResults;
+    }
 
-    const query = `dermatology clinic ${condition} treatment skin specialist near ${location}`;
-    const results = await fetchFromSerper(query, location, "places");
+    // Multiple search strategies for better results
+    const queries = [
+      `dermatology clinic ${location}`,
+      `skin clinic ${condition} ${location}`,
+      `dermatology center ${location}`,
+      `${condition} treatment clinic ${location}`,
+      `skin specialist clinic near ${location}`
+    ];
 
-    if (!results.length) {
-      console.warn("No clinic results found");
+    const searchTypes = ["places", "search"]; // Try both places and regular search
+    let allResults = [];
+    
+    // Try different combinations of queries and search types
+    for (const searchType of searchTypes) {
+      for (const query of queries) {
+        
+        try {
+          const results = await fetchFromSerper(query, location, searchType);
+          
+          if (results && results.length > 0) {
+            allResults = results;
+            break;
+          }
+        } catch (queryError) {
+          console.warn(`Query "${query}" (${searchType}) failed:`, queryError.message);
+          continue;
+        }
+      }
+      
+      if (allResults.length > 0) break; // Stop if we found results
+    }
+
+    if (!allResults.length) {
+      console.warn("No clinic results found from any query");
       return [];
     }
 
-    const clinics = results
-      .filter(result =>
-        result.title &&
-        result.link &&
-        result.snippet &&
-        (result.title.toLowerCase().includes("clinic") ||
-         result.title.toLowerCase().includes("center") ||
-         result.title.toLowerCase().includes("hospital"))
-      )
-      .map(result => ({
-        title: result.title,
-        link: result.link,
-        snippet: result.snippet,
-        condition,
-        location,
-      }));
+    // Enhanced filtering with comprehensive logging
+    const clinics = allResults
+      .filter((result, index) => {
+        const hasTitle = result.title && result.title.trim();
+        const hasLink = result.link && result.link.trim();
+        const hasSnippet = result.snippet && result.snippet.trim();
+        
+        if (!hasTitle || !hasLink) {
+          return false;
+        }
 
-    const topClinics = clinics.slice(0, 5);
+        const titleLower = result.title.toLowerCase();
+        const snippetLower = (result.snippet || '').toLowerCase();
+        const combinedText = `${titleLower} ${snippetLower}`;
 
-    await SearchResult.findOneAndUpdate(
-      { location, condition },
-      { clinics: topClinics },
-      { upsert: true }
-    );
+        // Comprehensive clinic/medical facility keywords
+        const facilityKeywords = [
+          'clinic', 'center', 'centre', 'hospital', 'medical center',
+          'dermatology', 'skin care', 'medical', 'health center',
+          'healthcare', 'practice', 'associates', 'institute',
+          'dermatologist', 'skin clinic', 'wellness center',
+          'treatment center', 'specialty clinic', 'medical group'
+        ];
+
+        const hasFacilityKeyword = facilityKeywords.some(keyword => 
+          combinedText.includes(keyword)
+        );
+
+        if (!hasFacilityKeyword) {
+          return false;
+        }
+
+        // Filter out non-medical results
+        const excludeKeywords = [
+          'reviews only', 'blog', 'news', 'article', 'wikipedia',
+          'definition', 'home remedies', 'diy', 'pharmacy',
+          'beauty salon', 'spa only', 'cosmetics store', 'product',
+          'insurance', 'lawyer', 'attorney'
+        ];
+
+        const hasExcludedKeyword = excludeKeywords.some(keyword => 
+          combinedText.includes(keyword)
+        );
+
+        if (hasExcludedKeyword) {
+          return false;
+        }
+
+        // Additional validation for places results
+        if (result.rating !== undefined && result.rating < 2.0) {
+          return false;
+        }
+
+        return true;
+      })
+      .map((result, index) => {
+        // Clean up the clinic name
+        let title = result.title.trim();
+        
+        // Remove common suffixes that might clutter the name
+        title = title.replace(/\s*-\s*(Yelp|Google|Reviews|Maps).*$/i, '');
+        title = title.replace(/\s*\|\s*.*$/, ''); // Remove everything after |
+        
+        const clinic = {
+          title: title,
+          link: result.link.trim(),
+          snippet: (result.snippet || '').trim(),
+          condition
+        };
+
+        return clinic;
+      });
+
+
+    if (clinics.length === 0) {
+      console.warn("No clinics found after filtering. Raw results sample:", 
+        allResults.slice(0, 3).map(r => ({ 
+          title: r.title, 
+          snippet: r.snippet?.substring(0, 100),
+          rating: r.rating 
+        }))
+      );
+      return [];
+    }
+
+    // Remove duplicates based on title similarity and address
+    const uniqueClinics = clinics.filter((clinic, index, self) => {
+      const currentTitle = clinic.title.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const currentAddress = (clinic.address || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      
+      return !self.slice(0, index).some(prev => {
+        const prevTitle = prev.title.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const prevAddress = (prev.address || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        
+        // Check for title similarity
+        const titleMatch = currentTitle === prevTitle || 
+                          (currentTitle.length > 5 && prevTitle.includes(currentTitle)) ||
+                          (prevTitle.length > 5 && currentTitle.includes(prevTitle));
+        
+        // Check for address similarity (if both have addresses)
+        const addressMatch = currentAddress && prevAddress && 
+                            (currentAddress === prevAddress ||
+                             currentAddress.includes(prevAddress) ||
+                             prevAddress.includes(currentAddress));
+        
+        return titleMatch || addressMatch;
+      });
+    });
+
+
+    // Sort by rating if available, then by search rank
+    const sortedClinics = uniqueClinics.sort((a, b) => {
+      if (a.rating && b.rating) {
+        return b.rating - a.rating; // Higher rating first
+      }
+      if (a.rating && !b.rating) return -1;
+      if (!a.rating && b.rating) return 1;
+      return a.searchRank - b.searchRank; // Lower rank (earlier result) first
+    });
+
+    const topClinics = sortedClinics.slice(0, 5);
+
+    // Cache the results
+    try {
+      await SearchResult.findOneAndUpdate(
+        { location, condition },
+        { 
+          clinics: topClinics,
+          lastFetched: new Date()
+        },
+        { upsert: true }
+      );
+    } catch (cacheError) {
+      console.warn("Failed to cache clinic results:", cacheError.message);
+    }
 
     return topClinics;
+
   } catch (error) {
-    console.error("Error fetching clinic data:", error);
+    console.error("Error in scrapeDermatologyClinics:", {
+      message: error.message,
+      stack: error.stack,
+      condition,
+      location
+    });
+    
     return [];
   }
 }
@@ -88,45 +246,157 @@ async function scrapeDermatologyClinics(condition, location) {
 async function scrapeDermatologists(condition, location) {
   try {
     const cachedResults = await checkAndUpdateCache(condition, location, 'specialists');
-    if (cachedResults) return cachedResults;
+    if (cachedResults && cachedResults.length > 0) {
+      return cachedResults;
+    }
 
-    const query = `dermatologist doctor specialist for ${condition} in ${location}`;
-    const results = await fetchFromSerper(query, location);
+    // Try multiple search queries for better results
+    const queries = [
+      `dermatologist ${condition} ${location}`,
+      `skin doctor ${condition} near ${location}`,
+      `dermatology clinic ${condition} ${location}`,
+      `${condition} specialist dermatologist ${location}`
+    ];
 
-    if (!results.length) {
-      console.warn("No specialist results found");
+    let allResults = [];
+    
+    // Try each query until we get results
+    for (const query of queries) {
+      
+      try {
+        const results = await fetchFromSerper(query, location);
+        
+        if (results && results.length > 0) {
+          allResults = results;
+          break; // Stop on first successful query
+        }
+      } catch (queryError) {
+        console.warn(`Query "${query}" failed:`, queryError.message);
+        continue; // Try next query
+      }
+    }
+
+    if (!allResults.length) {
+      console.warn("No results found from any query");
       return [];
     }
 
-    const specialists = results
-      .filter(result =>
-        result.title &&
-        result.link &&
-        result.snippet &&
-        (result.title.toLowerCase().includes("dr.") ||
-         result.title.toLowerCase().includes("doctor") ||
-         result.snippet.toLowerCase().includes("dermatologist"))
-      )
-      .map(result => ({
-        name: result.title,
-        link: result.link,
-        description: result.snippet,
-        specialty: condition,
-      }));
+    // More flexible filtering with detailed logging
+    const specialists = allResults
+      .filter((result, index) => {
+        const hasTitle = result.title && result.title.trim();
+        const hasLink = result.link && result.link.trim();
+        const hasSnippet = result.snippet && result.snippet.trim();
+        
+        if (!hasTitle || !hasLink || !hasSnippet) {
+          return false;
+        }
 
-    const topSpecialists = specialists.slice(0, 3);
+        // More comprehensive keyword matching
+        const titleLower = result.title.toLowerCase();
+        const snippetLower = result.snippet.toLowerCase();
+        const combinedText = `${titleLower} ${snippetLower}`;
 
-    await SearchResult.findOneAndUpdate(
-      { location, condition },
-      { specialists: topSpecialists },
-      { upsert: true }
-    );
+        const medicalKeywords = [
+          'dr.', 'doctor', 'dermatologist', 'dermatology', 'skin doctor',
+          'md', 'physician', 'specialist', 'clinic', 'medical center',
+          'healthcare', 'treatment', 'skin care', 'medical'
+        ];
+
+        const hasRelevantKeyword = medicalKeywords.some(keyword => 
+          combinedText.includes(keyword)
+        );
+
+        if (!hasRelevantKeyword) {
+          return false;
+        }
+
+        // Filter out obvious non-medical results
+        const excludeKeywords = [
+          'reviews only', 'blog', 'news', 'article', 'wikipedia', 
+          'definition', 'symptoms only', 'home remedies', 'diy'
+        ];
+
+        const hasExcludedKeyword = excludeKeywords.some(keyword => 
+          combinedText.includes(keyword)
+        );
+
+        if (hasExcludedKeyword) {
+          return false;
+        }
+
+        return true;
+      })
+      .map((result, index) => {
+        // Extract doctor name more intelligently
+        let name = result.title;
+        
+        // Try to extract just the doctor's name if it's in a longer title
+        const drMatch = name.match(/Dr\.\s*([^,\-\|]+)/i);
+        if (drMatch) {
+          name = `Dr. ${drMatch[1].trim()}`;
+        }
+
+        const specialist = {
+          name: name.trim(),
+          link: result.link.trim(),
+          description: result.snippet.trim(),
+          specialty: condition,
+          source: 'serper_search',
+          searchRank: index + 1
+        };
+
+        return specialist;
+      });
+
+    if (specialists.length === 0) {
+      console.warn("No specialists found after filtering. Raw results sample:", 
+        allResults.slice(0, 3).map(r => ({ title: r.title, snippet: r.snippet?.substring(0, 100) }))
+      );
+      return [];
+    }
+
+    // Remove duplicates based on name similarity
+    const uniqueSpecialists = specialists.filter((specialist, index, self) => {
+      const currentName = specialist.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+      return !self.slice(0, index).some(prev => {
+        const prevName = prev.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+        return currentName === prevName || 
+               (currentName.length > 5 && prevName.includes(currentName)) ||
+               (prevName.length > 5 && currentName.includes(prevName));
+      });
+    });
+
+    const topSpecialists = uniqueSpecialists.slice(0, 5);
+
+    // Cache the results
+    try {
+      await SearchResult.findOneAndUpdate(
+        { location, condition },
+        { 
+          specialists: topSpecialists,
+          lastFetched: new Date()
+        },
+        { upsert: true }
+      );
+    } catch (cacheError) {
+      console.warn("Failed to cache results:", cacheError.message);
+      // Continue anyway - don't fail the whole function for cache issues
+    }
 
     return topSpecialists;
+
   } catch (error) {
-    console.error("Error fetching specialist data:", error);
+    console.error("Error in scrapeDermatologists:", {
+      message: error.message,
+      stack: error.stack,
+      condition,
+      location
+    });
+    
+    // Return empty array instead of throwing
     return [];
   }
 }
 
-export { scrapeDermatologyClinics, scrapeDermatologists };
+export { scrapeDermatologyClinics, scrapeDermatologists};

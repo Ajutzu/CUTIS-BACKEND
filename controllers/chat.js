@@ -1,4 +1,3 @@
-import User from "../models/user.js";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import dotenv from 'dotenv';
 

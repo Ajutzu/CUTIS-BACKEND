@@ -1,11 +1,15 @@
 import express from 'express';
-import { resetTokenChecker, authTokenChecker, logout } from '../controllers/token.js';
-import { verifyToken, verifyResetToken } from '../middleware/guard.js';
+import { authTokenChecker, logout } from '../controllers/token.js';
+import { verifyToken } from '../middleware/guard.js';
+import { apiLimiter } from '../middleware/limiter.js';
 
 const router = express.Router();
 
-router.get('/check-reset-token', verifyResetToken, resetTokenChecker);
+// Routes with specific middleware requirements
+router.use(apiLimiter);
 router.get('/session-management', verifyToken, authTokenChecker);
 router.get('/logout', logout);
+
+// Note: check-reset-token route removed - no longer needed with simplified OTP flow
 
 export default router;
