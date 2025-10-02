@@ -7,7 +7,7 @@ sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 export const sendEmail = async (to, subject, html) => {
   const msg = {
     to,
-    from: process.env.EMAIL_FROM, // must match verified sender/domain
+    from: process.env.EMAIL_FROM, 
     subject,
     html,
   };
