@@ -28,7 +28,7 @@ export const customerService = async (req, res, next) => {
     `;
 
     const genAI = new GoogleGenerativeAI(geminiAPIKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
     const result = await model.generateContent(prompt);
     const response = await result.response;

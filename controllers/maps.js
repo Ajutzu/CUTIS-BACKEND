@@ -37,8 +37,9 @@ export const searchMap = async (req, res, next) => {
       ])
     };
 
-    // Find matching clinics in cache
-    const matchingClinics = await Clinic.find(query).sort({ created_at: -1 });
+    const matchingClinics = await Clinic.find(query)
+  .sort({ created_at: -1 })
+  .limit(15);
     
     return res.status(200).json({
       success: true,

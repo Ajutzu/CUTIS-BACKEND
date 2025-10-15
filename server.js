@@ -38,6 +38,7 @@ import conversationRoutes from './routes/conversation.js';
 import logsRoutes from './routes/logs.js';
 import managementRoutes from './routes/management.js';
 import dashboardRoutes from './routes/dashboard.js';
+import feedbackRoutes from './routes/feedback.js';
 
 // Importing middleware
 import errorHandler from './middleware/fallback.js';
@@ -88,6 +89,7 @@ app.use('/api/conversation', conversationRoutes);
 app.use('/api/logs', logsRoutes);
 app.use('/api/management', managementRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/feedback', feedbackRoutes);
 
 app.use(errorHandler);
 
