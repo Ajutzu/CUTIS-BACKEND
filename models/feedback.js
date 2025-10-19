@@ -9,6 +9,8 @@ const FeedbackSchema = new Schema(
     rating: { type: Number, min: 1, max: 5, required: true },
     comment: { type: String, trim: true, maxlength: 2000, default: '' },
     metadata: { type: Schema.Types.Mixed },
+    is_archived: { type: Boolean, default: false, index: true },
+    archived_at: { type: Date, default: null },
   },
   { timestamps: true }
 );

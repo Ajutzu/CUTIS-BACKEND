@@ -9,10 +9,14 @@ export const getAllUsers = async (req, res) => {
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 20;
         const skip = (page - 1) * limit;
-        const { role, search, is_active } = req.query;
+        const { role, search, is_active, includeArchived } = req.query;
         
         // Build filter object
         const filter = {};
+        // Exclude archived by default; include when explicitly requested
+        if (includeArchived !== 'true') {
+            filter.is_archived = { $ne: true };
+        }
         if (role) filter.role = role;
         if (is_active !== undefined) {
             if (is_active === 'active') {
@@ -49,6 +53,10 @@ export const getAllUsers = async (req, res) => {
                     email: 1,
                     role: 1,
                     is_active: 1,
+                    is_banned: 1,
+                    is_archived: 1,
+                    banned_at: 1,
+                    archived_at: 1,
                     created_at: 1,
                     medical_history_count: { $size: '$medical_history' }
                 }
@@ -189,11 +197,11 @@ export const toggleUserRole = async (req, res) => {
   }
 };
 
-// Delete user
-export const deleteUser = async (req, res) => {
+// Archive user (replaces delete)
+export const archiveUser = async (req, res) => {
     try {
         const { id } = req.params;
-        const adminId = req.user?.id; // Assuming admin ID is available in req.user
+        const adminId = req.user?.id;
 
         const user = await User.findById(id);
         if (!user) {
@@ -203,32 +211,39 @@ export const deleteUser = async (req, res) => {
             });
         }
 
-        // Check if trying to delete the last admin
+        if (user.is_archived) {
+            return res.status(400).json({
+                success: false,
+                message: 'User is already archived'
+            });
+        }
+
+        // Check if trying to archive the last admin
         if (user.role === 'Admin') {
-            const adminCount = await User.countDocuments({ role: 'Admin' });
-            if (adminCount <= 1) {
+            const activeAdminCount = await User.countDocuments({ 
+                role: 'Admin', 
+                is_archived: false,
+                _id: { $ne: id }
+            });
+            if (activeAdminCount < 1) {
                 return res.status(400).json({
                     success: false,
-                    message: 'Cannot delete the last admin user'
+                    message: 'Cannot archive the last admin user'
                 });
             }
         }
 
-        // Store user info for logging before deletion
-        const deletedUserInfo = {
-            id: user._id,
-            email: user.email,
-            role: user.role,
-            name: user.name
-        };
+        // Archive the user
+        user.is_archived = true;
+        user.archived_at = new Date();
+        user.is_active = false;
+        await user.save();
 
-        await User.findByIdAndDelete(id);
-
-        // Log admin action using existing logger middleware
+        // Log admin action
         if (adminId) {
             await logUserActivityAndRequest({
                 userId: adminId,
-                action: 'Delete User',
+                action: 'Archive User',
                 module: 'User Management',
                 status: 'Success',
                 req
@@ -237,12 +252,136 @@ export const deleteUser = async (req, res) => {
 
         res.status(200).json({
             success: true,
-            message: 'User deleted successfully'
+            message: 'User archived successfully'
         });
     } catch (error) {
         res.status(500).json({
             success: false,
-            message: 'Error deleting user',
+            message: 'Error archiving user',
+            error: error.message
+        });
+    }
+};
+
+// Ban user
+export const banUser = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const adminId = req.user?.id;
+
+        const user = await User.findById(id);
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found'
+            });
+        }
+
+        if (user.is_banned) {
+            return res.status(400).json({
+                success: false,
+                message: 'User is already banned'
+            });
+        }
+
+        if (user.is_archived) {
+            return res.status(400).json({
+                success: false,
+                message: 'Cannot ban an archived user'
+            });
+        }
+
+        // Check if trying to ban the last admin
+        if (user.role === 'Admin') {
+            const activeAdminCount = await User.countDocuments({ 
+                role: 'Admin', 
+                is_banned: false,
+                is_archived: false,
+                _id: { $ne: id }
+            });
+            if (activeAdminCount < 1) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Cannot ban the last admin user'
+                });
+            }
+        }
+
+        // Ban the user
+        user.is_banned = true;
+        user.banned_at = new Date();
+        user.is_active = false;
+        await user.save();
+
+        // Log admin action
+        if (adminId) {
+            await logUserActivityAndRequest({
+                userId: adminId,
+                action: 'Ban User',
+                module: 'User Management',
+                status: 'Success',
+                req
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'User banned successfully'
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Error banning user',
+            error: error.message
+        });
+    }
+};
+
+// Unban user
+export const unbanUser = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const adminId = req.user?.id;
+
+        const user = await User.findById(id);
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found'
+            });
+        }
+
+        if (!user.is_banned) {
+            return res.status(400).json({
+                success: false,
+                message: 'User is not banned'
+            });
+        }
+
+        // Unban the user
+        user.is_banned = false;
+        user.banned_at = null;
+        await user.save();
+
+        // Log admin action
+        if (adminId) {
+            await logUserActivityAndRequest({
+                userId: adminId,
+                action: 'Unban User',
+                module: 'User Management',
+                status: 'Success',
+                req
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'User unbanned successfully'
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Error unbanning user',
             error: error.message
         });
     }
@@ -251,17 +390,20 @@ export const deleteUser = async (req, res) => {
 // Get user statistics
 export const getUserStats = async (req, res) => {
     try {
-        const totalUsers = await User.countDocuments();
-        const activeUsers = await User.countDocuments({ is_active: true });
-        const inactiveUsers = await User.countDocuments({ is_active: false });
-        const adminUsers = await User.countDocuments({ role: 'Admin' });
-        const regularUsers = await User.countDocuments({ role: 'User' });
+        const totalUsers = await User.countDocuments({ is_archived: false });
+        const activeUsers = await User.countDocuments({ is_active: true, is_archived: false });
+        const inactiveUsers = await User.countDocuments({ is_active: false, is_archived: false });
+        const adminUsers = await User.countDocuments({ role: 'Admin', is_archived: false });
+        const regularUsers = await User.countDocuments({ role: 'User', is_archived: false });
+        const bannedUsers = await User.countDocuments({ is_banned: true, is_archived: false });
+        const archivedUsers = await User.countDocuments({ is_archived: true });
 
-        // Get users created in last 30 days
+        // Get users created in last 30 days (excluding archived)
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
         const recentUsers = await User.countDocuments({
-            created_at: { $gte: thirtyDaysAgo }
+            created_at: { $gte: thirtyDaysAgo },
+            is_archived: false
         });
 
         res.status(200).json({
@@ -272,6 +414,8 @@ export const getUserStats = async (req, res) => {
                 inactiveUsers,
                 adminUsers,
                 regularUsers,
+                bannedUsers,
+                archivedUsers,
                 recentUsers
             }
         });
@@ -291,6 +435,7 @@ export const getUsersByRole = async (req, res) => {
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 20;
         const skip = (page - 1) * limit;
+        const { includeArchived } = req.query;
 
         // Validate role
         if (!['Admin', 'User'].includes(role)) {
@@ -300,8 +445,10 @@ export const getUsersByRole = async (req, res) => {
             });
         }
 
+        const roleFilter = includeArchived === 'true' ? { role } : { role, is_archived: { $ne: true } };
+
         const users = await User.aggregate([
-            { $match: { role } },
+            { $match: roleFilter },
             { $sort: { created_at: -1 } },
             { $skip: skip },
             { $limit: limit },
@@ -320,13 +467,17 @@ export const getUsersByRole = async (req, res) => {
                     email: 1,
                     role: 1,
                     is_active: 1,
+                    is_banned: 1,
+                    is_archived: 1,
+                    banned_at: 1,
+                    archived_at: 1,
                     created_at: 1,
                     medical_history_count: { $size: '$medical_history' }
                 }
             }
         ]);
 
-        const total = await User.countDocuments({ role });
+        const total = await User.countDocuments(roleFilter);
         const totalPages = Math.ceil(total / limit);
 
         res.status(200).json({
@@ -354,13 +505,16 @@ export const getUsersByRole = async (req, res) => {
 // Search users with advanced filtering
 export const searchUsers = async (req, res) => {
     try {
-        const { query, role, is_active, dateFrom, dateTo } = req.query;
+        const { query, role, is_active, dateFrom, dateTo, includeArchived } = req.query;
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 20;
         const skip = (page - 1) * limit;
 
         // Build advanced filter
         const filter = {};
+        if (includeArchived !== 'true') {
+            filter.is_archived = { $ne: true };
+        }
         
         if (role) filter.role = role;
         if (is_active !== undefined) {
@@ -404,6 +558,10 @@ export const searchUsers = async (req, res) => {
                     email: 1,
                     role: 1,
                     is_active: 1,
+                    is_banned: 1,
+                    is_archived: 1,
+                    banned_at: 1,
+                    archived_at: 1,
                     created_at: 1,
                     medical_history_count: { $size: '$medical_history' }
                 }
@@ -431,6 +589,55 @@ export const searchUsers = async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Error searching users',
+            error: error.message
+        });
+    }
+};
+
+// Unarchive user
+export const unarchiveUser = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const adminId = req.user?.id;
+
+        const user = await User.findById(id);
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found'
+            });
+        }
+
+        if (!user.is_archived) {
+            return res.status(400).json({
+                success: false,
+                message: 'User is not archived'
+            });
+        }
+
+        user.is_archived = false;
+        user.archived_at = null;
+        user.is_active = true; // restore to active status per requirement
+        await user.save();
+
+        if (adminId) {
+            await logUserActivityAndRequest({
+                userId: adminId,
+                action: 'Unarchive User',
+                module: 'User Management',
+                status: 'Success',
+                req
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'User unarchived successfully'
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Error unarchiving user',
             error: error.message
         });
     }

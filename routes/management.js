@@ -4,9 +4,12 @@ import {
     getAllUsers,
     createUser,
     toggleUserRole,
-    deleteUser,
+    archiveUser,
+    banUser,
+    unbanUser,
     getUsersByRole,
-    searchUsers
+    searchUsers,
+    unarchiveUser
 } from '../controllers/management.js';
 import { verifyToken, isAdmin } from '../middleware/guard.js';
 import { apiLimiter } from '../middleware/limiter.js';
@@ -23,6 +26,9 @@ router.get('/users/search', searchUsers);
 router.get('/users/role/:role', getUsersByRole);
 router.post('/users', createUser);
 router.patch('/users/:id/toggle-role', toggleUserRole);
-router.delete('/users/:id', deleteUser);
+router.patch('/users/:id/archive', archiveUser);
+router.patch('/users/:id/unarchive', unarchiveUser);
+router.patch('/users/:id/ban', banUser);
+router.patch('/users/:id/unban', unbanUser);
 
 export default router;

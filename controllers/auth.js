@@ -36,6 +36,15 @@ export const googleLogin = async (req, res, next) => {
 
     let user = await User.findOne({ email });
 
+    // Check if user is archived or banned with specific messages
+    if (user && user.is_archived) {
+      console.log("Login attempt by archived user:", email);
+      return next({ status: 401, error: "Your account is archived. Please contact support." });
+    }
+    if (user && user.is_banned) {
+      console.log("Login attempt by banned user:", email);
+      return next({ status: 401, error: "Your account is banned." });
+    }
 
     let isNewUser = false;
     if (!user) {
@@ -102,6 +111,16 @@ export const loginUser = async (req, res, next) => {
   try {
     const user = await User.findOne({ email });
     if (!user) return next({ status: 400, error: "Invalid email or password" });
+
+    // Check if user is archived or banned with specific messages
+    if (user.is_archived) {
+      console.log("Login attempt by archived user:", email);
+      return next({ status: 401, error: "Your account is archived. Please contact support." });
+    }
+    if (user.is_banned) {
+      console.log("Login attempt by banned user:", email);
+      return next({ status: 401, error: "Your account is banned." });
+    }
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return next({ status: 400, error: "Invalid email or password" });

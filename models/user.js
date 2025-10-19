@@ -44,6 +44,22 @@ const UserSchema = new Schema({
     is_active: {
         type: Boolean,
         default: false
+    },
+    is_banned: {
+        type: Boolean,
+        default: false
+    },
+    is_archived: {
+        type: Boolean,
+        default: false
+    },
+    banned_at: {
+        type: Date,
+        default: null
+    },
+    archived_at: {
+        type: Date,
+        default: null
     }
 });
 
