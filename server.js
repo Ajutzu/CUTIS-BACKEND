@@ -44,10 +44,16 @@ import feedbackRoutes from './routes/feedback.js';
 import errorHandler from './middleware/fallback.js';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 dotenv.config();
 const app = express();
 const server = createServer(app);
+
+// Get __dirname equivalent for ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const io = new Server(server, {
   cors: {
@@ -76,6 +82,18 @@ app.use(cors({
 app.use(express.json());
 app.use(cookieParser());
 app.use(helmet());
+
+// Serve static files
+app.use('/assets', express.static(path.join(__dirname, 'assets')));
+
+// Set EJS as the view engine
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'template'));
+
+// Root route - API display page
+app.get('/', (req, res) => {
+    res.render('api-display');
+});
 
 // Routes
 app.use('/api/auth', authRoutes);

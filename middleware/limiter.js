@@ -53,7 +53,7 @@ export const loginLimiter = rateLimit({
 // General API DDoS protection limiter
 export const apiLimiter = rateLimit({
     windowMs: 10 * 60 * 1000, // 10 minutes
-    max: 150,
+    max: 250,
     handler: async (req, res) => {
         await logRateLimitEvent(req, 'Potential DDoS Detected', 'Threats', 10 * 60 * 1000);
         res.status(429).json({
