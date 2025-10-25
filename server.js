@@ -65,7 +65,7 @@ const io = new Server(server, {
   },
 });
 
-const PORT = process.env.PORT || 3002;
+const PORT = process.env.PORT;
 
 // For Render
 app.set('trust proxy', 1);
