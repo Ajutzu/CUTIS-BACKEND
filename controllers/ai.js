@@ -9,7 +9,9 @@ import {
   determineTargetFolder,
   moveImageToFolder,
   findConditionByClassification,
-  confidenceLevelChecker
+  confidenceLevelChecker,
+  determineSeverity,
+  classificationFound,
 } from "../utils/ai.js";
 import {
   scrapeDermatologyClinics,
@@ -33,13 +35,14 @@ export const classifyImage = async (req, res, next) => {
     const data = await classifyImageWithAPI(form);
 
     if (data.success && data.predictions && data.predictions.length > 0) {
-      const classification = data.predictions[0].class;
+      let classification = data.predictions[0].class;
       const confidence = data.predictions[0].confidence;
+      classification = classificationFound(classification, data.predictions[0].confidence);
 
       const condition = await findConditionByClassification(classification);
       
       const recommendation = confidenceLevelChecker(confidence, condition ? condition.recommendation : undefined);
-      const severity = condition ? condition.severity : "";
+      const finalSeverity = determineSeverity(confidence, condition ? condition.severity : "");
 
       const targetFolder = determineTargetFolder(classification, confidence);
 
@@ -71,7 +74,7 @@ export const classifyImage = async (req, res, next) => {
           classification,
           uploadResult.secure_url,
           recommendation,
-          severity,
+          finalSeverity,
           specialists,
           clinics
         );
@@ -97,19 +100,18 @@ export const classifyImage = async (req, res, next) => {
 
       await cloudinary.uploader.destroy(imagePublicId);
       console.log("response")
+      const normalizedPredictions = Array.isArray(data.predictions) && data.predictions.length > 0
+        ? [{ ...data.predictions[0], class: classification }, ...data.predictions.slice(1)]
+        : (data.predictions || []);
       res.json({
         success: true,
         ...data,
+        predictions: normalizedPredictions,
         imageUrl: uploadResult.secure_url,
-        recommendation,
-        severity,
+        recommendation, 
+        severity: finalSeverity, 
         medicalHistoryAdded,
         conditionFound: !!condition,
-        condition: condition ? {
-          name: condition.name || classification,
-          description: condition.description || "",
-          severity: condition.severity || severity
-        } : null,
         specialists: Array.isArray(specialists) ? specialists : [],
         clinics: Array.isArray(clinics) ? clinics : [],
         classification: classification,

@@ -69,3 +69,26 @@ export const confidenceLevelChecker = (confidence, recommendation) => {
 
   return "Sorry, but our system detected that this image has a low classification confidence. This means the result might not be accurate, so we cannot provide a specific recommendation. For your safety, we recommend consulting a licensed dermatologist. You can use the Cutis 'Search Derma' feature to find one near you.";
 };
+
+// Determine the severity to use in responses/history based on confidence
+export const determineSeverity = (confidence, conditionSeverity) => {
+  const conf = confidence > 1 ? confidence / 100 : confidence;
+  if (conf < 0.9) return "None";
+  return conditionSeverity || "";
+};
+
+export const classificationFound = (a, b) => {
+  let confidence;
+  let classification;
+  if (typeof a === "number") {
+    confidence = a;
+    classification = b;
+  } else {
+    classification = a;
+    confidence = b;
+  }
+  const conf = confidence > 1 ? confidence / 100 : confidence;
+  if (conf < 0.9) return "Cannot Determine";
+  return classification;
+};
+

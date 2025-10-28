@@ -6,7 +6,7 @@ const ConditionSchema = new Schema({
     description: String,
     severity: {
         type: String,
-        enum: ["Low", "Moderate", "High", "Severe"]
+        enum: ["Low", "Moderate", "High", "Severe", "None"]
     },
     recommendation: String
 });
