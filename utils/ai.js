@@ -63,19 +63,8 @@ export const confidenceLevelChecker = (confidence, recommendation) => {
   // Accept values like 82.93 or 0.8293
   const conf = confidence > 1 ? confidence / 100 : confidence;
 
-  /*
-    confidence is expected as a float between 0-1 (e.g. 0.82 for 82%).
-    
-    • ≥ 0.9  → return the specific condition recommendation
-    • 0.8–0.9 → generic dermatologist advice
-    • < 0.8  → low-confidence warning
-  */
   if (conf >= 0.9) {
     return recommendation || "For the best outcome we recommend to go to the nearest dermatologist.";
-  }
-
-  if (conf >= 0.8) {
-    return recommendation || "The system is moderately confident about this result. We advise booking an appointment with a dermatologist for an in-person evaluation.";
   }
 
   return "Sorry, but our system detected that this image has a low classification confidence. This means the result might not be accurate, so we cannot provide a specific recommendation. For your safety, we recommend consulting a licensed dermatologist. You can use the Cutis 'Search Derma' feature to find one near you.";

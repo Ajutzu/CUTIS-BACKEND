@@ -38,7 +38,7 @@ export const classifyImage = async (req, res, next) => {
 
       const condition = await findConditionByClassification(classification);
       
-      const recommendation = confidenceLevelChecker(confidence, condition.recommendation);
+      const recommendation = confidenceLevelChecker(confidence, condition ? condition.recommendation : undefined);
       const severity = condition ? condition.severity : "";
 
       const targetFolder = determineTargetFolder(classification, confidence);
@@ -108,8 +108,7 @@ export const classifyImage = async (req, res, next) => {
         condition: condition ? {
           name: condition.name || classification,
           description: condition.description || "",
-          severity: condition.severity || severity,
-          recommendation: condition.recommendation || recommendation
+          severity: condition.severity || severity
         } : null,
         specialists: Array.isArray(specialists) ? specialists : [],
         clinics: Array.isArray(clinics) ? clinics : [],
