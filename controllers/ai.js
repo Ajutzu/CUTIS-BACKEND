@@ -120,10 +120,28 @@ export const classifyImage = async (req, res, next) => {
         historyId: historyId
       });
     } else {
-      res.json(data);
+      try {
+        if (imagePublicId) {
+          await cloudinary.uploader.destroy(imagePublicId);
+        }
+      } catch (cleanupErr) {
+        console.error("Cleanup error (destroy initial upload):", cleanupErr);
+      }
+      res.status(400).json({
+        success: false,
+        message: data?.message || "Failed to analyze image. Please try again.",
+        ...data,
+      });
     }
   } catch (err) {
     console.error("Error classifying image:", err);
+    try {
+      if (req?.file?.filename) {
+        await cloudinary.uploader.destroy(req.file.filename);
+      }
+    } catch (cleanupErr) {
+      console.error("Cleanup error (destroy on exception):", cleanupErr);
+    }
     next({ status: 500, message: `Error classifying image: ${err.message}` });
   }
 };
