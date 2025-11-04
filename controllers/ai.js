@@ -29,8 +29,21 @@ export const classifyImage = async (req, res, next) => {
 
     const imageUrl = req.file.path;
     const imagePublicId = req.file.filename;
+    const imagePublicIdFull = imagePublicId && imagePublicId.startsWith('Cutis/Skins/')
+      ? imagePublicId
+      : `Cutis/Skins/${imagePublicId}`;
+    const sourceFormat = req.file.format || (req.file.path && req.file.path.match(/\.([a-z0-9]+)(?:\?|$)/i)?.[1]) || undefined;
+    // Generate a signed URL for the initially uploaded authenticated asset
+    const signedAccessUrl = cloudinary.url(imagePublicIdFull, {
+      type: 'authenticated',
+      resource_type: 'image',
+      sign_url: true,
+      secure: true,
+      version: req.file.version,
+      format: sourceFormat,
+    });
 
-    const { form } = await prepareImageForClassification(imageUrl);
+    const { form } = await prepareImageForClassification(signedAccessUrl);
 
     const data = await classifyImageWithAPI(form);
 
@@ -47,7 +60,7 @@ export const classifyImage = async (req, res, next) => {
       const targetFolder = determineTargetFolder(classification, confidence);
 
       const uploadResult = await moveImageToFolder(
-        imageUrl,
+        signedAccessUrl,
         targetFolder,
         req.file.originalname
       );
@@ -72,7 +85,14 @@ export const classifyImage = async (req, res, next) => {
         const historyResult = await addMedicalHistory(
           userId,
           classification,
-          uploadResult.secure_url,
+          cloudinary.url(uploadResult.public_id, {
+            type: 'authenticated',
+            resource_type: 'image',
+            sign_url: true,
+            secure: true,
+            version: uploadResult.version,
+            format: uploadResult.format,
+          }),
           recommendation,
           finalSeverity,
           specialists,
@@ -98,7 +118,7 @@ export const classifyImage = async (req, res, next) => {
         req,
       });
 
-      await cloudinary.uploader.destroy(imagePublicId);
+      await cloudinary.uploader.destroy(imagePublicIdFull, { type: 'authenticated', resource_type: 'image' });
       console.log("response")
       const normalizedPredictions = Array.isArray(data.predictions) && data.predictions.length > 0
         ? [{ ...data.predictions[0], class: classification }, ...data.predictions.slice(1)]
@@ -107,7 +127,14 @@ export const classifyImage = async (req, res, next) => {
         success: true,
         ...data,
         predictions: normalizedPredictions,
-        imageUrl: uploadResult.secure_url,
+        imageUrl: cloudinary.url(uploadResult.public_id, {
+          type: 'authenticated',
+          resource_type: 'image',
+          sign_url: true,
+          secure: true,
+          version: uploadResult.version,
+          format: uploadResult.format,
+        }),
         recommendation, 
         severity: finalSeverity, 
         medicalHistoryAdded,
@@ -121,8 +148,8 @@ export const classifyImage = async (req, res, next) => {
       });
     } else {
       try {
-        if (imagePublicId) {
-          await cloudinary.uploader.destroy(imagePublicId);
+        if (imagePublicIdFull) {
+          await cloudinary.uploader.destroy(imagePublicIdFull, { type: 'authenticated', resource_type: 'image' });
         }
       } catch (cleanupErr) {
         console.error("Cleanup error (destroy initial upload):", cleanupErr);
@@ -137,7 +164,8 @@ export const classifyImage = async (req, res, next) => {
     console.error("Error classifying image:", err);
     try {
       if (req?.file?.filename) {
-        await cloudinary.uploader.destroy(req.file.filename);
+        const pid = req.file.filename.startsWith('Cutis/Skins/') ? req.file.filename : `Cutis/Skins/${req.file.filename}`;
+        await cloudinary.uploader.destroy(pid, { type: 'authenticated', resource_type: 'image' });
       }
     } catch (cleanupErr) {
       console.error("Cleanup error (destroy on exception):", cleanupErr);

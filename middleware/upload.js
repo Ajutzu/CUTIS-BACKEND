@@ -19,6 +19,7 @@ const skinStorage = new CloudinaryStorage({
     folder: 'Cutis/Skins',
     resource_type: 'image',
     allowed_formats: ['jpg', 'png', 'jpeg', 'webp'],
+    type: 'authenticated',
     public_id: (req, file) => {
       let classification = 'Unclassified';
       

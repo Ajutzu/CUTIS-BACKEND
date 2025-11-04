@@ -44,6 +44,7 @@ export const moveImageToFolder = async (
     folder: newFolder,
     public_id: `${Date.now()}-${originalFilename}`.replace(/\s+/g, "_"),
     resource_type: "image",
+    type: "authenticated",
   });
 };
 
