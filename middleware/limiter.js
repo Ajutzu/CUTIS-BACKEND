@@ -69,7 +69,7 @@ export const apiLimiter = rateLimit({
 // Daily skin scan abuse limiter
 export const dailySkinLimiter = rateLimit({
     windowMs: 24 * 60 * 60 * 1000, // 24 hours
-    max: req => req.user ? 5 : 3,
+    max: req => req.user ? 30 : 30,
     keyGenerator: req => req.user?.userId ? `user-${req.user.userId}` : `ip-${req.ip}`,
     handler: async (req, res) => {
         await logRateLimitEvent(req, 'Potential Skin Scan Abuse', 'Threats', 24 * 60 * 60 * 1000);
