@@ -30,7 +30,7 @@ export const classifyImageWithAPI = async (form) => {
 };
 
 export const determineTargetFolder = (classification, confidence) => {
-  return confidence >= 0.9 ? classification : "Unclassified";
+  return confidence >= 0.80 ? classification : "Unclassified";
 };
 
 export const moveImageToFolder = async (
@@ -61,10 +61,10 @@ export const findConditionByClassification = async (classification) => {
 };
 
 export const confidenceLevelChecker = (confidence, recommendation) => {
-  // Accept values like 82.93 or 0.8293
+  // Accept values like 82.93 or 0.80293
   const conf = confidence > 1 ? confidence / 100 : confidence;
 
-  if (conf >= 0.9) {
+  if (conf >= 0.80) {
     return recommendation || "For the best outcome we recommend to go to the nearest dermatologist.";
   }
 
@@ -74,7 +74,7 @@ export const confidenceLevelChecker = (confidence, recommendation) => {
 // Determine the severity to use in responses/history based on confidence
 export const determineSeverity = (confidence, conditionSeverity) => {
   const conf = confidence > 1 ? confidence / 100 : confidence;
-  if (conf < 0.9) return "None";
+  if (conf < 0.80) return "None";
   return conditionSeverity || "";
 };
 
@@ -89,7 +89,7 @@ export const classificationFound = (a, b) => {
     confidence = b;
   }
   const conf = confidence > 1 ? confidence / 100 : confidence;
-  if (conf < 0.9) return "Cannot Determine";
+  if (conf < 0.80) return "Cannot Determine";
   return classification;
 };
 

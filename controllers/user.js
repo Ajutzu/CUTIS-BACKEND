@@ -168,7 +168,11 @@ export const getAllMedicalHistory = async (req, res, next) => {
       condition_description: entry.condition_id?.description || "",
       severity: entry.condition_id?.severity || "",
       treatment_recommendation: entry.treatment_recommendation || "",
-      created_at: entry.created_at
+      created_at: entry.created_at,
+      is_tracked: entry.is_tracked || false,
+      tracked_group_id: entry.tracked_group_id || null,
+      comparison_status: entry.comparison_status || null,
+      ai_guidance: entry.ai_guidance || null
     }));
 
     res.status(200).json({
@@ -206,6 +210,10 @@ export const getMedicalHistoryById = async (req, res, next) => {
       diagnosis_date: historyEntry.diagnosis_date,
       treatment_recommendation: historyEntry.treatment_recommendation,
       created_at: historyEntry.created_at,
+      is_tracked: historyEntry.is_tracked || false,
+      tracked_group_id: historyEntry.tracked_group_id || null,
+      comparison_status: historyEntry.comparison_status || null,
+      ai_guidance: historyEntry.ai_guidance || null,
       condition: historyEntry.condition_id ? {
         _id: historyEntry.condition_id._id,
         name: historyEntry.condition_id.name,

@@ -39,6 +39,7 @@ import logsRoutes from './routes/logs.js';
 import managementRoutes from './routes/management.js';
 import dashboardRoutes from './routes/dashboard.js';
 import feedbackRoutes from './routes/feedback.js';
+import historyRoutes from './routes/history.js';
 
 // Importing middleware
 import errorHandler from './middleware/fallback.js';
@@ -108,6 +109,7 @@ app.use('/api/logs', logsRoutes);
 app.use('/api/management', managementRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/feedback', feedbackRoutes);
+app.use('/api/history', historyRoutes);
 
 app.use(errorHandler);
 

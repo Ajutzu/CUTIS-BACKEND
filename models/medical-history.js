@@ -15,6 +15,19 @@ const MedicalHistorySchema = new Schema({
     diagnosis_date: Date,
     treatment_recommendation: String,
     upload_skin: String,
+    tracked_group_id: {
+        type: String,
+        index: true
+    },
+    is_tracked: {
+        type: Boolean,
+        default: false
+    },
+    comparison_status: {
+        type: String,
+        enum: ['improving', 'worsening', 'unchanged']
+    },
+    ai_guidance: String,
     specialists: [{
         type: Schema.Types.ObjectId,
         ref: 'SpecialistHistory'
@@ -34,6 +47,7 @@ const MedicalHistorySchema = new Schema({
 });
 
 MedicalHistorySchema.index({ user_id: 1, created_at: -1 });
+MedicalHistorySchema.index({ user_id: 1, tracked_group_id: 1, created_at: -1 });
 
 const MedicalHistory = mongoose.model('MedicalHistory', MedicalHistorySchema);
 export default MedicalHistory;
